@@ -1,8 +1,9 @@
 /* AI Stock Alert System — core (DOM-free; runs in the browser and in the GitHub runner).
    A "sweep" checks a list of tickers for anything new since the last look:
      stage 0  free, computed in code: SEC filings (8-K items, Form 4, 144, 13D/G, offerings, late filings) and price/volume/calendar
-     stage 1  web sentinels (each searches one kind of source)
-     stage 2  the Alert Desk: removes duplicates, scores importance, checks your thesis, writes the headline
+     stage 1  the Keyword Finder: AI works out the names, people, products and places to search for (kept 30 days)
+     stage 2  web sentinels (each searches one kind of source)
+     stage 3  the Alert Desk: removes duplicates, scores importance, checks your thesis, writes the headline
    It reuses the committee engine: the same plans (Saver = Batch API), prompt caching and cost accounting. */
 (function (G) {
 "use strict";
@@ -13,18 +14,20 @@ const isN = U.isNum;
 AL.SENTINELS = [
   {id: "sec",     code: "SEC", name: "SEC Filings",          stage: 0, free: true, color: "var(--c-desk)",     blurb: "8-Ks, insider buys & sales, 144s, 13D/G stakes, offerings, late filings"},
   {id: "tape",    code: "PX",  name: "Price & Calendar",     stage: 0, free: true, color: "var(--c-chart)",    blurb: "Big moves, unusual volume, 52-week extremes, your price levels, earnings dates"},
-  {id: "news",    code: "NW",  name: "News & Trade Press",   stage: 1, search: 4, cadence: "daily",  color: "var(--c-scout)",    blurb: "Company news, deals, contracts, lawsuits, accidents, trade publications"},
-  {id: "press",   code: "NP",  name: "Newspapers",           stage: 1, search: 3, cadence: "daily",  color: "var(--c-historian)", blurb: "National papers and local papers where the company operates"},
-  {id: "analyst", code: "AN",  name: "Analyst Changes",      stage: 1, search: 3, cadence: "daily",  color: "var(--c-hunter)",   blurb: "Upgrades, downgrades, initiations, price targets, estimate revisions"},
-  {id: "social",  code: "SO",  name: "Social Chatter",       stage: 1, search: 4, cadence: "daily",  color: "var(--c-sent)",     blurb: "Reddit, StockTwits, X, forums, blogs, Seeking Alpha — what people are saying"},
-  {id: "pods",    code: "PC",  name: "Podcasts & Interviews", stage: 1, search: 3, cadence: "weekly", color: "var(--c-expect)",   blurb: "Management on podcasts, conference talks, episodes about the stock"},
-  {id: "regs",    code: "RG",  name: "Regulators & Courts",  stage: 1, search: 3, cadence: "weekly", color: "var(--c-forensic)", blurb: "Permits, agency actions, lawsuits, government contracts"},
-  {id: "peers",   code: "PR",  name: "Customers & Rivals",   stage: 1, search: 3, cadence: "weekly", color: "var(--c-industry)", blurb: "Read-through from customers, competitors and suppliers"},
-  {id: "shorts",  code: "SH",  name: "Shorts & Ownership",   stage: 1, search: 3, cadence: "weekly", color: "var(--c-bear)",     blurb: "Short reports, short interest, big holders, index changes, credit ratings"},
-  {id: "desk",    code: "AD",  name: "Alert Desk",           stage: 2, color: "var(--c-cio)",      blurb: "Removes duplicates, ranks what matters, checks your thesis"}
+  {id: "keys",    code: "KW",  name: "Keyword Finder",       stage: 1, color: "var(--c-member)",   blurb: "Works out what to search for: company names, people, products, places, customers, rivals"},
+  {id: "news",    code: "NW",  name: "News & Trade Press",   stage: 2, search: 4, cadence: "daily",  color: "var(--c-scout)",    blurb: "Company news, deals, contracts, lawsuits, accidents, trade publications"},
+  {id: "press",   code: "NP",  name: "Newspapers",           stage: 2, search: 3, cadence: "daily",  color: "var(--c-historian)", blurb: "National papers and local papers where the company operates"},
+  {id: "analyst", code: "AN",  name: "Analyst Changes",      stage: 2, search: 3, cadence: "daily",  color: "var(--c-hunter)",   blurb: "Upgrades, downgrades, initiations, price targets, estimate revisions"},
+  {id: "social",  code: "SO",  name: "Social Chatter",       stage: 2, search: 4, cadence: "daily",  color: "var(--c-sent)",     blurb: "Reddit, StockTwits, X, forums, blogs, Seeking Alpha — what people are saying"},
+  {id: "pods",    code: "PC",  name: "Podcasts & Interviews", stage: 2, search: 3, cadence: "weekly", color: "var(--c-expect)",   blurb: "Management on podcasts, conference talks, episodes about the stock"},
+  {id: "regs",    code: "RG",  name: "Regulators & Courts",  stage: 2, search: 3, cadence: "weekly", color: "var(--c-forensic)", blurb: "Permits, agency actions, lawsuits, government contracts"},
+  {id: "peers",   code: "PR",  name: "Customers & Rivals",   stage: 2, search: 3, cadence: "weekly", color: "var(--c-industry)", blurb: "Read-through from customers, competitors and suppliers"},
+  {id: "shorts",  code: "SH",  name: "Shorts & Ownership",   stage: 2, search: 3, cadence: "weekly", color: "var(--c-bear)",     blurb: "Short reports, short interest, big holders, index changes, credit ratings"},
+  {id: "desk",    code: "AD",  name: "Alert Desk",           stage: 3, color: "var(--c-cio)",      blurb: "Removes duplicates, ranks what matters, checks your thesis"}
 ];
 AL.sentinel = id => AL.SENTINELS.find(s => s.id === id);
-AL.WEB = AL.SENTINELS.filter(s => s.stage === 1).map(s => s.id);
+AL.WEB = AL.SENTINELS.filter(s => s.stage === 2).map(s => s.id);
+AL.KEYWORD_DAYS = 30;
 
 AL.PLAN_TEXT = {
   saver:    {short: "cheapest · ready within about an hour", note: "Anthropic's Batch API (half price). Sentinels on Haiku 4.5, Alert Desk on Sonnet 5.5."},
@@ -50,7 +53,19 @@ const ITEM = S.obj({
   importance: S.int10("How much this could matter for the stock: 1 trivia … 5 thesis-changing (use 1–5 only)"),
   reputable: {type: "boolean", description: "false for anonymous posts, forums, unverified social media"}
 });
-for (const s of AL.SENTINELS.filter(x => x.stage === 1)) AIC.SCHEMAS["al_" + s.id] = {bare: true, score: null, extra: {
+AIC.SCHEMAS.al_keys = {bare: true, score: null, extra: {
+  company_name: S.str("The company's usual name, e.g. Select Water Solutions"),
+  aliases: S.arr(S.str(""), "Other names it goes by: legal name, short name, former names, common abbreviations", 6),
+  people: S.arr(S.obj({name: S.str(""), role: S.str("")}), "CEO, CFO, chair, founders and other executives often in the news", 8),
+  products: S.arr(S.str(""), "Brands, products, services, projects and key assets", 10),
+  subsidiaries: S.arr(S.str(""), "Subsidiaries, joint ventures and recently acquired companies", 8),
+  places: S.arr(S.str(""), "Where it operates: basins, counties, states, cities, facilities", 10),
+  customers: S.arr(S.str(""), "Main customers", 8),
+  competitors: S.arr(S.str(""), "Main competitors", 8),
+  industry_terms: S.arr(S.str(""), "Industry words that bring up news relevant to this company", 10),
+  avoid: S.arr(S.str(""), "Things with similar names or tickers to ignore (to avoid false matches)", 6)
+}};
+for (const s of AL.SENTINELS.filter(x => x.stage === 2)) AIC.SCHEMAS["al_" + s.id] = {bare: true, score: null, extra: {
   nothing_new: {type: "boolean", description: "true if you found nothing new in the window"},
   items: S.arr(ITEM, "New items, most important first (max 8)", 8),
   ...(s.id === "social" ? {buzz: S.enm(["quiet", "normal", "elevated", "spiking"], "Volume of chatter vs normal"), tone: S.enm(["bullish", "bearish", "mixed", "neutral"], "Overall tone")} : {})
@@ -168,9 +183,30 @@ const TASKS = {
   peers: c => `Search for news since ${c.since} about the CUSTOMERS, COMPETITORS and SUPPLIERS of ${c.who} that could read through to it: customers changing budgets, activity or contracts; competitors winning or losing business, pricing, deals and results; supplier problems. First identify the main customers and competitors, then search. Explain each read-through in one line.`,
   shorts: c => `Search for items on ${c.who} since ${c.since} about short sellers and ownership: activist short reports, changes in short interest or days to cover, borrow becoming hard, large holders buying or selling (13F changes, activist stakes), index additions or deletions, and credit-rating changes or debt news.`
 };
+AL.keywordTask = (sw, ticker) => {
+  const c = sw.ctx[ticker] || {};
+  return `KEYWORD FINDER — ${ticker}
+Work out the search keywords a news-monitoring system should use for the stock ${ticker}${c.name ? " (" + c.name + ")" : ""}${c.terms ? `. The owner already added: ${c.terms}` : ""}.
+Use a quick search to confirm the company and its current leadership. List the names people would actually use in news, filings, podcasts and social posts: the company's names, executives, brands and products, subsidiaries, places it operates, main customers and competitors, and industry terms. Also list look-alikes to ignore (other companies or things with similar names or tickers). Be concrete and current; no generic words like "stock" or "earnings".
+Write a two-line note, then the JSON block.`;
+};
+const kwList = (k, f, n) => (k && Array.isArray(k[f]) ? k[f] : []).map(x => typeof x === "string" ? x : x && x.name ? x.name + (x.role ? " (" + x.role + ")" : "") : "").filter(Boolean).slice(0, n);
+AL.keywordLine = function (c) {
+  const k = c.keywords || {};
+  const bits = [...kwList(k, "aliases", 3), ...kwList(k, "people", 3).map(x => x.replace(/ \(.*\)$/, "")), ...kwList(k, "products", 4), ...kwList(k, "subsidiaries", 3)];
+  if (c.terms) bits.unshift(...String(c.terms).split(/\s*,\s*/).filter(Boolean));
+  return [...new Set(bits)].slice(0, 14).join(", ");
+};
 AL.seatTask = function (sw, ticker, seatId) {
-  const c = sw.ctx[ticker] || {}, s = AL.sentinel(seatId);
-  const who = `${c.name ? c.name + " (" + ticker + ")" : ticker}${c.terms ? " — also search for: " + c.terms : ""}`;
+  const c = sw.ctx[ticker] || {}, s = AL.sentinel(seatId), k = c.keywords || {};
+  const name = c.name || k.company_name || "";
+  const kw = AL.keywordLine(c);
+  let who = `${name ? name + " (" + ticker + ")" : ticker}${kw ? " — also search for: " + kw : ""}`;
+  if (seatId === "peers" && (kwList(k, "customers", 1).length || kwList(k, "competitors", 1).length)) who += `. Known customers: ${kwList(k, "customers", 8).join(", ") || "unknown"}. Known competitors: ${kwList(k, "competitors", 8).join(", ") || "unknown"}`;
+  if (seatId === "regs" && kwList(k, "places", 1).length) who += `. Operates in: ${kwList(k, "places", 10).join(", ")}`;
+  if (seatId === "pods" && kwList(k, "people", 1).length) who += `. Executives: ${kwList(k, "people", 6).join(", ")}`;
+  if (["news", "press"].includes(seatId) && kwList(k, "industry_terms", 1).length) who += `. Useful industry terms: ${kwList(k, "industry_terms", 6).join(", ")}`;
+  if (kwList(k, "avoid", 1).length) who += `. Do NOT confuse with: ${kwList(k, "avoid", 6).join(", ")}`;
   const n = AL.searchesFor(seatId, sw);
   let t = `ALERT SENTINEL: ${s.name.toUpperCase()} — ${ticker}\nWindow: items published from ${c.since} to today (${U.today()}).\n\n` + TASKS[seatId]({who, since: c.since, reputableOnly: sw.reputableOnly});
   t += `\n\nYou have up to ${n} web search${n === 1 ? "" : "es"}. Spend them on new information.`;
@@ -222,7 +258,7 @@ AL.newSweep = function ({tickers, ctx, plan, searchDepth, reputableOnly, blocked
     sw.ctx[t] = c;
     // weekly sentinels: Mondays (or if missed for 8+ days); daily ones every sweep; a manual sweep runs everything
     const weeklyDue = scope !== "scheduled" || !c.lastWeekly || new Date().getDay() === 1 || U.daysBetween(c.lastWeekly, U.today()) >= 8;
-    sw.tasks[t] = AL.SENTINELS.filter(s => s.stage !== 1 || s.cadence === "daily" || weeklyDue).map(s => s.id);
+    sw.tasks[t] = AL.SENTINELS.filter(s => s.stage !== 2 || s.cadence === "daily" || weeklyDue).map(s => s.id);
     for (const id of sw.tasks[t]) sw.reports[AL.rk(t, id)] = {status: "queued", text: "", data: null, sources: [], searches: [], usage: null, ms: 0};
   }
   return sw;
@@ -231,7 +267,7 @@ AL.newSweep = function ({tickers, ctx, plan, searchDepth, reputableOnly, blocked
 AL.candidates = function (sw, ticker) {
   const out = [], seen = new Set(sw.ctx[ticker]?.seenKeys || []), have = new Set();
   for (const id of sw.tasks[ticker] || []) {
-    if (id === "desk") continue;
+    if (id === "desk" || id === "keys") continue;
     const r = sw.reports[AL.rk(ticker, id)]; const its = (r && r.data && r.data.items) || [];
     for (const x of its) {
       const it = Object.assign({seat: id}, x, {importance: Math.max(1, Math.min(5, Math.round(+x.importance || 2)))});
@@ -297,7 +333,22 @@ AL.execute = async function (sw, hooks) {
     }
   }
   hooks.save && await hooks.save(sw);
-  // stage 1: web sentinels — one batch (Saver) or a parallel burst for every ticker
+  // stage 1: Keyword Finder — reused for 30 days, so usually free and instant
+  const kjobs = [];
+  for (const t of sw.tickers) {
+    const r = sw.reports[AL.rk(t, "keys")], c = sw.ctx[t]; if (!r || ["done", "skipped"].includes(r.status)) continue;
+    if (c.keywords && c.keywordsAt && U.daysBetween(c.keywordsAt, U.today()) < AL.KEYWORD_DAYS) {
+      Object.assign(r, {status: "done", data: c.keywords, text: "", reused: {at: c.keywordsAt}, ms: 0}); upd(sw, AL.rk(t, "keys")); continue; }
+    if (r.status !== "waiting") Object.assign(r, {text: "", data: null, sources: [], searches: [], error: null});
+    const model = AL.modelFor("keys", sw, st);
+    kjobs.push({id: AL.rk(t, "keys"), customId: safeId(t) + "_keys", target: r,
+      o: {engine: "api", settings: st, apiKey: hooks.apiKey, model, system: "You are the Keyword Finder of a personal stock alert system. Be concrete and current.", blocks: [], task: AL.keywordTask(sw, t), schemaKey: "al_keys", maxUses: 2, maxTokens: 2000},
+      onDone: out => { Object.assign(r, {text: out.text, data: out.data || {}, sources: out.sources, searches: out.searches || r.searches, usage: out.usage, status: "done", model, ms: r.t0 ? Date.now() - r.t0 : 0});
+        if (out.data) { c.keywords = out.data; c.keywordsAt = U.today(); if (!c.name && out.data.company_name) c.name = out.data.company_name; } }});
+    r.t0 = Date.now();
+  }
+  await runAll(sw, kjobs, hooks);
+  // stage 2: web sentinels — one batch (Saver) or a parallel burst for every ticker
   const jobs = [];
   for (const t of sw.tickers) for (const id of (sw.tasks[t] || []).filter(x => AL.WEB.includes(x))) {
     const r = sw.reports[AL.rk(t, id)]; if (["done", "skipped"].includes(r.status)) continue;
@@ -309,7 +360,7 @@ AL.execute = async function (sw, hooks) {
     r.t0 = Date.now();
   }
   await runAll(sw, jobs, hooks);
-  // stage 2: the Alert Desk, one per ticker (skipped when there is nothing to edit)
+  // stage 3: the Alert Desk, one per ticker (skipped when there is nothing to edit)
   const djobs = [];
   for (const t of sw.tickers) {
     const r = sw.reports[AL.rk(t, "desk")]; if (!r || ["done", "skipped"].includes(r.status)) continue;
@@ -350,6 +401,7 @@ AL.nextContext = function (prev, sw, ticker) {
   c.since = U.today(); c.lastSweep = sw.createdAt;
   if ((sw.tasks[ticker] || []).some(id => AL.sentinel(id)?.cadence === "weekly")) c.lastWeekly = U.today();
   if (sw.ctx[ticker]?.name) c.name = sw.ctx[ticker].name;
+  if (sw.ctx[ticker]?.keywords) { c.keywords = sw.ctx[ticker].keywords; c.keywordsAt = sw.ctx[ticker].keywordsAt; }
   return c;
 };
 AL.thesisLines = function (run, th) {

@@ -138,8 +138,12 @@ function anthropicMessage(body) {
     content.push({type: "web_search_tool_result", tool_use_id: "s0", content: [{type: "web_search_result", url: "https://example.com/" + (key || "q").replace(/\W/g, ""), title: "Example source"}]});
   }
   let data = null, text = "";
+  const kw = task.match(/^KEYWORD FINDER — (\S+)/m);
+  if (kw) { data = {company_name: "Select Water Solutions", aliases: ["Select Energy Services", "Select Water"], people: [{name: "John Schmitz", role: "Chairman & CEO"}, {name: "Chris George", role: "CFO"}], products: ["produced water recycling", "Bakken pipeline"], subsidiaries: ["Peak Rentals"], places: ["Delaware Basin", "Reeves County", "Lea County"], customers: ["ExxonMobil", "Devon"], competitors: ["Aris Water", "WaterBridge"], industry_terms: ["produced water", "saltwater disposal"], avoid: ["Select Medical (SEM)"]};
+    text = "Keywords for " + kw[1] + "\n\n```json\n" + JSON.stringify(data) + "\n```"; data = null; }
   const al = task.match(/ALERT SENTINEL: ([A-Z&' ]+?) — (\S+)/), ad = task.match(/ALERT DESK — (\S+)/);
-  if (al) { const nm = al[1].trim(), t = al[2]; const slug = nm.toLowerCase().replace(/\W+/g, "-");
+  if (kw) {}
+  else if (al) { const nm = al[1].trim(), t = al[2]; const slug = nm.toLowerCase().replace(/\W+/g, "-");
     data = nm === "PODCASTS & INTERVIEWS" ? {summary: "Nothing new.", nothing_new: true, items: []} : {summary: nm + " found items.", nothing_new: false, items: [
       {title: `${t} ${nm.toLowerCase()} item one`, summary: "Something happened with a number: 12%.", url: `https://example.com/${slug}/${t}/1`, source: nm === "SOCIAL CHATTER" ? "r/stocks" : "Reuters", date: "2026-09-30", kind: "news", sentiment: "positive", importance: nm === "ANALYST CHANGES" ? 4 : 3, reputable: nm !== "SOCIAL CHATTER"},
       {title: `${t} duplicate of item one`, summary: "Same event elsewhere.", url: `https://example.org/${slug}/${t}/dup`, source: "Yahoo", date: "2026-09-30", kind: "news", sentiment: "positive", importance: 2, reputable: true}],

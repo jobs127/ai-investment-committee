@@ -455,3 +455,27 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
   .dgrow{grid-template-columns:56px 1fr}.dgrow .meta{grid-column:2}
 }
 @media print{.alconsole,#alBoardSec,.alitem .acts,.alhead .seg,.alhead button,.alhead select,.appswitch{display:none!important}}
+/* 6.1 sentinel panel */
+.seat.open{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+#alSeatPanel .seatpanel{margin-top:12px;border-color:color-mix(in srgb,var(--c) 45%,var(--line));border-top:3px solid var(--c)}
+.seatpanel .sechead .glyph{width:26px;height:26px;grid-row:auto}
+.seatpanel .sechead .h3{margin:0}
+.sp-t{border-top:1px solid var(--line);padding:10px 0 4px}
+.sp-t:first-of-type{border-top:0}
+.sp-th{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}.sp-th b{font:700 13px/1 var(--f-display);letter-spacing:.08em}
+.sp-items{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.sp-items li{border-left:3px solid var(--line-2);padding:4px 0 4px 10px}
+.sp-items li.kept{border-left-color:var(--good)}.sp-items li.dropped,.sp-items li.seen{opacity:.72}
+.sp-it{font-size:14px;line-height:1.4}.sp-it a{color:var(--fg)}.sp-it a:hover{color:var(--accent)}
+.sp-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
+.fate.kept{color:var(--good)}.fate.merged{color:var(--accent)}.fate.dropped,.fate.seen{color:var(--muted)}
+.sp-hl{border-left:3px solid;padding:4px 10px;margin:4px 0 8px;font-size:14px}
+.sp-rep summary{cursor:pointer;font-size:12.5px;color:var(--fg-2);margin:6px 0}
+.badge.unv{font:600 9.5px/1.2 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;border:1px solid color-mix(in srgb,var(--warn) 50%,var(--line));color:var(--warn);border-radius:3px;padding:1px 5px}
+.kwg{display:grid;grid-template-columns:170px 1fr;gap:10px;align-items:start;padding:5px 0}
+.kwg .lbl{padding-top:4px}
+.kwc{display:flex;flex-wrap:wrap;gap:5px}
+.kw{font-size:12.5px;padding:3px 9px;border-radius:999px;border:1px solid color-mix(in srgb,var(--c-member) 45%,var(--line));background:color-mix(in srgb,var(--c-member) 8%,transparent)}
+.kw.avoid{border-color:var(--line-2);background:none;color:var(--muted);text-decoration:line-through}
+#ticker,.upper,#cmpTickers,#labTickers,#wNew{text-transform:uppercase}
+@media (max-width:640px){.kwg{grid-template-columns:1fr;gap:4px}}

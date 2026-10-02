@@ -330,6 +330,11 @@ function bind() {
     if (f.id === "ghForm") { Object.assign(S.settings, {ghOwner: $("#ghO").value.trim(), ghRepo: $("#ghR").value.trim(), ghBranch: $("#ghB").value.trim() || "main"}); LS.set("settings", S.settings); toast("GitHub settings saved."); }
   });
   alBind();
+  // tickers: capital letters as you type (keeps the cursor where it is)
+  const UPPER = ["ticker", "alNew", "cmpTickers", "labTickers", "wNew", "hCsv"];
+  document.addEventListener("input", e => { const el = e.target; if (!(UPPER.includes(el.id) || el.dataset.hf === "ticker" || el.classList.contains("upper"))) return;
+    const v = el.value, up = el.id === "hCsv" ? v.split("\n").map(l => l.replace(/^[^,]*/, m => m.toUpperCase())).join("\n") : v.toUpperCase(); if (v === up) return;
+    const a = el.selectionStart, b = el.selectionEnd; el.value = up; try { el.setSelectionRange(a, b); } catch {} });
   addEventListener("beforeunload", e => { if (ALS.running && ALS.sweep && Object.values(ALS.sweep.reports).some(r => r.status === "running")) { e.preventDefault(); e.returnValue = ""; return; } const batchOnly = S.run && S.run.seats.every(id => S.run.reports[id].status !== "running"); if ((S.running && !batchOnly) || Object.keys(S.bg).length) { e.preventDefault(); e.returnValue = ""; } });
   setInterval(() => { if (S.running && S.run?.batch) { renderBoard(); renderProgress(); } if (ALS.running && S.view === "alfeed") renderAlBoard(); }, 30000);
 }

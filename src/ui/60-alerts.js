@@ -42,7 +42,7 @@ async function alSweep(tickers) {
 async function alExecute(sw) {
   ALS.sweep = sw; ALS.running = true; ALS.ctl = new AbortController(); const t0 = Date.now(); ALS.t0 = t0;
   renderAlFeed();
-  let tm = 0; const tick = () => { if (!tm) tm = setTimeout(() => { tm = 0; if (S.view === "alfeed") { renderAlBoard(); renderAlProgress(); } }, 200); };
+  let tm = 0; const tick = () => { if (!tm) tm = setTimeout(() => { tm = 0; if (S.view === "alfeed") { renderAlBoard(); renderAlProgress(); if (ALS.seatOpen) renderAlSeatPanel(); } }, 200); };
   const timer = setInterval(() => { if (S.view === "alfeed") renderAlProgress(); }, 1000);
   try {
     await AL.execute(sw, {settings: S.settings, apiKey: S.key, signal: ALS.ctl.signal, save: alSave, onUpdate: tick});
@@ -74,7 +74,7 @@ function renderAlFeed() {
     $("#alFeed").innerHTML = `<div class="card"><h3 class="h3">The Stock Alert System runs in the GitHub version</h3><p>It needs live web search and SEC data, which pages inside claude.ai can't reach. Open your GitHub Pages app to sweep tickers and get the 6:30 am digest.</p></div>`;
     return;
   }
-  renderAlTop(); renderAlBoard(); renderAlProgress(); renderAlDigest(); renderAlItems();
+  renderAlTop(); renderAlBoard(); renderAlSeatPanel(); renderAlProgress(); renderAlDigest(); renderAlItems();
 }
 function renderAlTop() {
   const on = alOn(), st = ALS.settings, run = ALS.running;
@@ -96,21 +96,82 @@ function renderAlTop() {
 }
 function renderAlBoard() {
   const sw = ALS.sweep, box = $("#alBoard"); $("#alBoardSec").hidden = false;
-  const stages = [[0, "Free", "computed in code"], [1, "Web sentinels", ""], [2, "Editor", ""]];
+  const stages = [[0, "Free", "computed in code"], [1, "Keywords", "what to search for"], [2, "Web sentinels", ""], [3, "Editor", ""]];
   box.innerHTML = stages.map(([n, l, sub]) => `<div class="stage"><div class="stage-l"><span class="num">${n}</span>${l}${sub ? `<small>${sub}</small>` : ""}</div><div class="stage-seats">${
     AL.SENTINELS.filter(s => s.stage === n).map(s => {
-      let state = s.free ? "free" : s.cadence ? (s.cadence === "daily" ? "daily" : "weekly") + " in the digest" : "";
+      let state = s.id === "keys" ? "AI · refreshed every 30 days" : s.free ? "free" : s.cadence ? (s.cadence === "daily" ? "daily" : "weekly") + " in the digest" : "";
       let dst = "idle";
       if (sw && (sw.status === "running" || ALS.sweep === sw)) {
         const x = AL.seatStatus(sw, s.id); dst = x.status;
         if (x.status === "running") state = `working · ${x.done}/${x.n}`;
         else if (x.status === "waiting") state = `⧗ queued at Anthropic · ${waitMins(x.waiting)}m`;
+        else if (x.status === "done" && s.id === "keys") { const n = sw.tickers.reduce((a, t) => a + kwCount(sw.reports[AL.rk(t, "keys")]?.data), 0), reused = sw.tickers.every(t => sw.reports[AL.rk(t, "keys")]?.reused);
+          state = `✓ ${n} keywords${reused ? " · reused · free" : x.usage && U.isNum(x.usage.cost) ? " · $" + x.usage.cost.toFixed(2) : ""}`; }
         else if (x.status === "done") state = `✓ ${x.items} item${x.items === 1 ? "" : "s"}${x.usage && U.isNum(x.usage.cost) ? " · $" + x.usage.cost.toFixed(2) : ""}`;
         else if (x.status === "idle") { state = "not due"; dst = "skipped"; }
         else if (x.status !== "queued") state = x.status;
       }
-      return `<div class="seat" data-st="${dst}" style="--c:${s.color}"><span class="glyph">${s.code}</span><span class="name">${esc(s.name)}</span><span class="blurb">${esc(s.blurb)}</span>${state ? `<span class="state">${esc(state)}</span>` : ""}</div>`;
+      const open = ALS.seatOpen === s.id;
+      return `<button type="button" class="seat ${open ? "open" : ""}" data-alseat="${s.id}" aria-expanded="${open}" title="Show what ${esc(s.name)} found" data-st="${dst}" style="--c:${s.color}"><span class="glyph">${s.code}</span><span class="name">${esc(s.name)}</span><span class="blurb">${esc(s.blurb)}</span>${state ? `<span class="state">${esc(state)}</span>` : ""}</button>`;
     }).join("")}</div></div>`).join("");
+}
+const kwCount = k => k ? ["aliases", "people", "products", "subsidiaries", "places", "customers", "competitors", "industry_terms"].reduce((a, f) => a + ((k[f] || []).length), k.company_name ? 1 : 0) : 0;
+const kwGroup = (label, arr, cls = "") => { arr = (arr || []).filter(Boolean); return arr.length ? `<div class="kwg"><span class="lbl">${esc(label)}</span><div class="kwc">${arr.map(x => `<span class="kw ${cls}">${esc(x)}</span>`).join("")}</div></div>` : ""; };
+/* the panel under the board: everything one sentinel found in the latest sweep, and what happened to each item */
+function renderAlSeatPanel() {
+  const box = $("#alSeatPanel"); if (!box) return;
+  const id = ALS.seatOpen, sw = ALS.sweep;
+  if (!id) { box.innerHTML = ""; return; }
+  const s = AL.sentinel(id);
+  const head = `<div class="sechead"><span class="glyph" style="--c:${s.color}">${s.code}</span><h3 class="h3" style="color:${s.color}">${esc(s.name)} · what it found</h3>${sw ? `<span class="muted small">sweep of ${esc(new Date(sw.createdAt).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}</span>` : ""}<button class="btn small" type="button" data-alseat="${id}" aria-label="Close">✕ Close</button></div>`;
+  if (!sw) { box.innerHTML = `<div class="card seatpanel" style="--c:${s.color}">${head}<p class="muted">No sweep yet — press <b>Sweep now</b>, then click a sentinel to see its findings.</p></div>`; return; }
+  const tickers = sw.tickers.filter(t => (sw.tasks[t] || []).includes(id));
+  if (!tickers.length) { box.innerHTML = `<div class="card seatpanel" style="--c:${s.color}">${head}<p class="muted">This sentinel wasn't due in that sweep (it runs ${esc(s.cadence || "")} in the morning digest; Sweep now runs it).</p></div>`; return; }
+  const body = tickers.map(t => {
+    const r = sw.reports[AL.rk(t, id)] || {}, res = sw.results?.[t], ctx = sw.ctx?.[t] || {};
+    const keptKeys = new Set((res?.items || []).map(i => i.key)), alsoUrls = new Set((res?.items || []).flatMap(i => (i.also || []).map(a => a.url)).filter(Boolean));
+    const seen = new Set(ctx.seenKeys || []);
+    const fate = it => { const k = it.key || AL.keyOf(it);
+      if (!res) return ["", "waiting for the Alert Desk"];
+      if (keptKeys.has(k)) { const f = res.items.find(i => i.key === k); return ["kept", `in your feed · importance ${f.importance}${f.urgent ? " · urgent" : ""}`]; }
+      if (it.url && alsoUrls.has(it.url)) return ["merged", "merged — same story as another source"];
+      if (seen.has(k)) return ["seen", "already reported in an earlier sweep"];
+      return ["dropped", "left out by the Alert Desk (minor or noise)"]; };
+    const meta = [r.status, r.usage?.searches != null ? `${r.usage.searches} search${r.usage.searches === 1 ? "" : "es"}` : "", r.model ? shortModel(r.model) : (s.free ? "computed in code · free" : ""), r.usage && U.isNum(r.usage.cost) ? "$" + r.usage.cost.toFixed(3) : "",
+      id === "social" && r.data?.buzz ? `chatter ${r.data.buzz}${r.data.tone ? " · " + r.data.tone : ""}` : ""].filter(Boolean).join(" · ");
+    let h = `<div class="sp-t"><div class="sp-th"><b>${esc(t)}</b><span class="muted small">${esc(meta)}</span></div>`;
+    if (id === "keys") {
+      const k = r.data || ctx.keywords;
+      if (!k) return h + `<p class="muted small">${esc(r.status === "done" ? "No keywords returned." : r.status || "")}</p></div>`;
+      if (r.reused) h += `<p class="small muted">↺ Found on ${esc(r.reused.at)} and reused (free). Keywords refresh every ${AL.KEYWORD_DAYS} days. <button class="linkbtn" type="button" data-alkwreset="${esc(t)}">Find them again in the next sweep</button></p>`;
+      if (ctx.terms) h += kwGroup("Your own terms (Alert list)", String(ctx.terms).split(/\s*,\s*/));
+      h += [["Company", [k.company_name].concat(k.aliases || [])], ["People", (k.people || []).map(x => typeof x === "string" ? x : `${x.name}${x.role ? " — " + x.role : ""}`)], ["Products, brands & assets", k.products], ["Subsidiaries", k.subsidiaries],
+        ["Places", k.places], ["Customers", k.customers], ["Competitors", k.competitors], ["Industry terms", k.industry_terms]].map(([l, v]) => kwGroup(l, v)).join("")
+        + kwGroup("Ignored look-alikes", k.avoid, "avoid");
+      h += `<p class="small muted">The web sentinels search for the company plus: <i>${esc(AL.keywordLine(Object.assign({}, ctx, {keywords: k})))}</i>${(k.customers || []).length ? " — Customers & Rivals also gets the customer and competitor lists, Regulators the places, Podcasts the people." : ""}</p>`;
+      if (r.text && !r.reused) h += `<details class="sp-rep"><summary>Its note</summary><div class="md">${md(r.text)}</div></details>`;
+      if ((r.searches || []).length) h += `<p class="small muted"><b>Searched:</b> ${r.searches.map(q => "“" + esc(q) + "”").join(" · ")}</p>`;
+      return h + `</div>`;
+    }
+    if (id === "desk") {
+      h += res ? `<p class="sp-hl" style="border-color:${moodColor(res.mood)}">${esc(res.headline)}</p>` : "";
+      h += r.text ? `<div class="md">${md(r.text)}</div>` : `<p class="muted small">${esc(r.status === "skipped" ? "Nothing new to edit — skipped at no cost." : "No notes.")}</p>`;
+      if (res) h += `<p class="small muted">Kept ${res.items.length} item${res.items.length === 1 ? "" : "s"} for your feed out of ${AL.candidates(sw, t).length} candidates.</p>`;
+      return h + `</div>`;
+    }
+    const items = (r.data && r.data.items) || [];
+    if (items.length) h += `<ul class="sp-items">${items.map(it => { const [cls, why] = fate(it);
+      return `<li class="${cls}"><div class="sp-it">${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>` : `<b>${esc(it.title)}</b>`}${it.reputable === false ? ` <span class="badge unv">Unverified</span>` : ""}</div>
+        ${it.summary ? `<div class="small">${esc(it.summary)}</div>` : ""}<div class="sp-meta">${esc([it.source, it.date, it.kind].filter(Boolean).join(" · "))}${it.importance ? ` · sentinel's score ${esc(it.importance)}` : ""} · <span class="fate ${cls}">${esc(why)}</span></div></li>`; }).join("")}</ul>`;
+    else h += `<p class="muted small">${r.status === "done" ? (r.data?.nothing_new ? "Nothing new in the window." : "No items.") : esc(r.status || "")}</p>`;
+    if (r.text && !s.free) h += `<details class="sp-rep"><summary>Its written report</summary><div class="md">${md(r.text)}</div></details>`;
+    else if (r.text) h += `<p class="small muted">${esc(r.text)}</p>`;
+    if ((r.searches || []).length) h += `<p class="small muted"><b>Searched:</b> ${r.searches.map(q => "“" + esc(q) + "”").join(" · ")}</p>`;
+    h += sourcesHtml(r.sources);
+    if (r.error) h += `<p class="err">${esc(r.error)}</p>`;
+    return h + `</div>`;
+  }).join("");
+  box.innerHTML = `<div class="card seatpanel" style="--c:${s.color}">${head}${body}</div>`;
 }
 function renderAlProgress() {
   const p = $("#alProg"), sw = ALS.sweep; if (!p) return;
@@ -174,12 +235,13 @@ function alItemHtml(i) {
 function renderAlList() {
   const L = ALS.list;
   $("#viewAllist").innerHTML = `<main class="wrap"><div class="sechead"><span class="lbl">Alert list — the stocks the Alert System watches</span></div>
-  <div class="card"><div class="tblwrap"><table class="dt allist"><thead><tr><th>On</th><th>Ticker</th><th>Also search for <span class="muted small">(names, products, people)</span></th><th>Alert if price ≤</th><th>Alert if price ≥</th><th>Last checked</th><th></th></tr></thead><tbody>
+  <div class="card"><div class="tblwrap"><table class="dt allist"><thead><tr><th>On</th><th>Ticker</th><th>Your own search terms <span class="muted small">(optional — AI adds more)</span></th><th>AI keywords</th><th>Alert if price ≤</th><th>Alert if price ≥</th><th>Last checked</th><th></th></tr></thead><tbody>
     ${L.map((w, i) => { const c = ALS.ctx[U.normTicker(w.ticker)]; return `<tr data-ali="${i}"><td><input type="checkbox" data-alf="on" ${w.on !== false ? "checked" : ""} aria-label="Watch ${esc(w.ticker)}"></td><td><b>${esc(w.ticker)}</b>${c?.name ? `<div class="muted small">${esc(c.name)}</div>` : ""}</td>
-      <td><input class="field small" data-alf="terms" value="${esc(w.terms || "")}" placeholder="e.g. Select Water, John Schmitz"></td><td><input class="field small num" data-alf="below" value="${esc(w.below || "")}" inputmode="decimal" placeholder="–"></td><td><input class="field small num" data-alf="above" value="${esc(w.above || "")}" inputmode="decimal" placeholder="–"></td>
-      <td class="small muted">${c?.lastSweep ? esc(fmtDate(c.lastSweep)) : "never"}</td><td><button class="del" type="button" data-aldel="${i}" aria-label="Remove ${esc(w.ticker)}">×</button></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">No tickers yet.</td></tr>`}
+      <td><input class="field small" data-alf="terms" value="${esc(w.terms || "")}" placeholder="e.g. a project name you care about"></td>
+      <td class="small">${c?.keywords ? `<span title="${esc(AL.keywordLine(c))}">${kwCount(c.keywords)} found</span> <span class="muted">· ${esc(c.keywordsAt || "")}</span>` : `<span class="muted">found in the next sweep</span>`}</td><td><input class="field small num" data-alf="below" value="${esc(w.below || "")}" inputmode="decimal" placeholder="–"></td><td><input class="field small num" data-alf="above" value="${esc(w.above || "")}" inputmode="decimal" placeholder="–"></td>
+      <td class="small muted">${c?.lastSweep ? esc(fmtDate(c.lastSweep)) : "never"}</td><td><button class="del" type="button" data-aldel="${i}" aria-label="Remove ${esc(w.ticker)}">×</button></td></tr>`; }).join("") || `<tr><td colspan="8" class="muted">No tickers yet.</td></tr>`}
   </tbody></table></div>
-  <div class="jrow"><input class="field" id="alNew" placeholder="Add tickers, e.g. WTTR, AESI" aria-label="Add tickers"><button class="btn primary small" type="button" id="alAdd">＋ Add</button>
+  <div class="jrow"><input class="field upper" id="alNew" placeholder="Add tickers, e.g. WTTR, AESI" aria-label="Add tickers" autocapitalize="characters" spellcheck="false"><button class="btn primary small" type="button" id="alAdd">＋ Add</button>
     ${S.watchlist.length || S.holdings.length ? `<button class="btn small" type="button" id="alCopy">Copy from Committee watchlist & holdings</button>` : ""}
     <button class="btn small" type="button" id="alSaveList">✓ Save</button></div></div>
   <div class="card"><h3 class="h3">Morning digest by email (6:30 am Central, weekdays)</h3>
@@ -235,6 +297,8 @@ function alBind() {
     const t = e.target.closest("button, [data-alopen]"); if (!t) return; const d = t.dataset;
     if (d.app) { setApp(d.app); return; }
     if (d.viewGo) { go(d.viewGo); return; }
+    if (d.alkwreset) { const c = ALS.ctx[d.alkwreset]; if (c) { delete c.keywordsAt; alPersist.ctx(); } t.replaceWith(Object.assign(document.createElement("span"), {textContent: "OK — the next sweep finds them again.", className: "small"})); return; }
+    if (d.alseat) { ALS.seatOpen = ALS.seatOpen === d.alseat ? null : d.alseat; renderAlBoard(); renderAlSeatPanel(); if (ALS.seatOpen) $("#alSeatPanel").scrollIntoView({behavior: "smooth", block: "nearest"}); return; }
     if (d.alplan) { ALS.settings.plan = d.alplan; alPersist.settings(); renderAlTop(); renderEngine(); updateNav(); return; }
     if (d.aldepth) { ALS.settings.searchDepth = +d.aldepth; alPersist.settings(); renderAlTop(); return; }
     if (d.alsrc) { ALS.settings.reputableOnly = d.alsrc === "rep"; alPersist.settings(); renderAlTop(); return; }
@@ -271,6 +335,8 @@ function setApp(app) {
   updateNav(); renderEngine(); renderView(); if (S.app === "committee") renderConsole(); scrollTo(0, 0);
 }
 async function alBoot() {
+  // show the latest sweep on the board so its sentinels can be opened after a reload
+  if (!ALS.sweep && ALS.index[0]) { try { ALS.sweep = await DB.getRun(ALS.index[0].id); } catch {} if (S.view === "alfeed") { renderAlBoard(); renderAlSeatPanel(); } }
   // sweeps that were waiting on Anthropic's Batch API keep going
   for (const x of ALS.index.filter(x => x.status === "running")) {
     const sw = await DB.getRun(x.id); if (!sw) continue;

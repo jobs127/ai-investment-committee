@@ -21,7 +21,7 @@ const ok = m => console.log("  ✓ " + m);
 (async () => {
   // 1. Balanced, all sources, everything
   let sw = AL.newSweep({tickers: ["WTTR", "XOM"], ctx: {WTTR: {since: "2026-07-01", below: "20", thesis: ["Monitor: recycling contracts"]}}, plan: "balanced", searchDepth: 1, scope: "all"});
-  assert.equal(sw.tasks.WTTR.length, 11); ok("on-demand sweep runs all 11 sentinels");
+  assert.equal(sw.tasks.WTTR.length, 12); ok("on-demand sweep runs all 12 steps (incl. Keyword Finder)");
   await AL.execute(sw, {settings: st, apiKey: "k"});
   assert.equal(sw.status, "done");
   const w = sw.results.WTTR;
@@ -38,8 +38,13 @@ const ok = m => console.log("  ✓ " + m);
   assert(sentBodies.some(b => /claude-haiku/.test(b.model)) && global.lastBodies.some(b => /ALERT DESK/.test(JSON.stringify(b.messages)) && /sonnet/.test(b.model)), "models");
   ok("Haiku sentinels, Sonnet desk on Balanced");
 
+  assert.equal(sw.ctx.WTTR.keywords.company_name, "Select Water Solutions"); assert.equal(sw.ctx.WTTR.keywordsAt, U.today());
+  const kwPrompt = global.lastBodies.find(b => /YOUR SEAT|ALERT SENTINEL: CUSTOMERS/.test(JSON.stringify(b.messages)) && /WTTR/.test(JSON.stringify(b.messages)));
+  const pj = JSON.stringify(kwPrompt.messages);
+  assert(/John Schmitz/.test(pj) && /Aris Water/.test(pj) && /Do NOT confuse with: Select Medical/.test(pj), "keywords feed the sentinels");
+  ok("Keyword Finder: names, people, rivals passed to sentinels; look-alikes excluded");
   // 2. carry-over context: next sweep skips what was seen
-  const ctx2 = AL.nextContext(sw.ctx.WTTR, sw, "WTTR");
+  const ctx2 = AL.nextContext(sw.ctx.WTTR, sw, "WTTR"); assert(ctx2.keywords && ctx2.keywordsAt, "keywords carried");
   assert(ctx2.seenKeys.length > 5 && ctx2.since === U.today());
   ok("seen keys carried: " + ctx2.seenKeys.length);
 
@@ -51,6 +56,8 @@ const ok = m => console.log("  ✓ " + m);
   await AL.execute(sw, {settings: st, apiKey: "k"});
   assert.equal(BM.stats.created - created, 1, "one batch for the sentinels; desk skipped (nothing new)");
   assert.equal(sw.reports["WTTR|desk"].status, "skipped");
+  assert(sw.reports["WTTR|keys"].reused && !global.lastBodies.some(b => /KEYWORD FINDER/.test(JSON.stringify(b.messages))), "keywords reused, not re-found");
+  ok("keywords reused for 30 days (free)");
   const reqs = BM.lastRequests || [];
   const w2 = sw.results.WTTR;
   assert(!w2.items.some(i => ctx2.seenKeys.includes(i.key)), "already-seen items not repeated");

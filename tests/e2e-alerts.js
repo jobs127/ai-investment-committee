@@ -29,7 +29,7 @@ const strip = h => String(h).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   await p.click('[data-app="alerts"]'); await p.waitForTimeout(200); await shot("a01-empty");
   const nav1 = await p.evaluate(() => ({title: document.querySelector("#appTitle").textContent, cHidden: document.querySelector('.nav [data-view="analysis"]').hidden, feedShown: !document.querySelector('.nav [data-view="alfeed"]').hidden}));
   // alert list
-  await p.click('.nav [data-view="allist"]'); await p.fill("#alNew", "wttr, xom"); await p.click("#alAdd");
+  await p.click('.nav [data-view="allist"]'); await p.type("#alNew", "wttr, xom"); const typedUpper = await p.inputValue("#alNew"); await p.click("#alAdd");
   await p.fill('[data-ali="0"] [data-alf="terms"]', "Select Water, John Schmitz"); await p.fill('[data-ali="0"] [data-alf="below"]', "20"); await p.click("#alSaveList");
   await shot("a02-list");
   const dl = await Promise.all([p.waitForEvent("download"), p.click("#alExport")]); const jf = path.join(OUT, "alerts.json"); await dl[0].saveAs(jf);
@@ -40,6 +40,12 @@ const strip = h => String(h).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   await p.waitForFunction(() => !ALS.running && ALS.sweep && ALS.sweep.status === "done", null, {timeout: 90000}); await p.waitForTimeout(300);
   await shot("a04-feed"); await shot("a05-feed-full", true);
   const feed = await p.evaluate(() => ({items: document.querySelectorAll(".alitem").length, urgent: document.querySelectorAll(".alitem .badge.urg").length, unverified: document.querySelectorAll(".alitem .badge.unv").length, thesis: document.querySelectorAll(".alitem .thit").length, digestRows: document.querySelectorAll(".dgrow").length, badge: document.querySelector('.nav [data-view="alfeed"]').textContent}));
+  await p.click('[data-alseat="social"]'); await p.waitForTimeout(300); await p.evaluate(() => document.querySelector("#alSeatPanel").scrollIntoView()); await shot("a05b-social-panel");
+  const panel = await p.evaluate(() => ({items: document.querySelectorAll("#alSeatPanel .sp-items li").length, kept: document.querySelectorAll("#alSeatPanel li.kept").length, merged: document.querySelectorAll("#alSeatPanel li.merged").length, text: document.querySelector("#alSeatPanel").textContent.slice(0, 160)}));
+  await p.click('[data-alseat="keys"]'); await p.waitForTimeout(200); await p.evaluate(() => document.querySelector("#alSeatPanel").scrollIntoView()); await shot("a05k-keywords");
+  const kwPanel = await p.evaluate(() => ({chips: document.querySelectorAll("#alSeatPanel .kw").length, board: [...document.querySelectorAll(".stage-l")].map(x => x.textContent.trim())}));
+  await p.click('[data-alseat="pods"]'); const pods = await p.evaluate(() => document.querySelector("#alSeatPanel").textContent.slice(0, 200));
+  await p.click('[data-alseat="desk"]'); await shot("a05c-desk-panel"); await p.click('[data-alseat="desk"]');
   // filters and actions
   await p.click('[data-alimp="urgent"]'); const urgentOnly = await p.$$eval(".alitem", x => x.length);
   await p.click('[data-alimp="all"]'); await p.click(".alitem [data-alact=dismiss]"); const afterDismiss = await p.$$eval(".alitem", x => x.length);
@@ -50,6 +56,7 @@ const strip = h => String(h).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   await p.waitForFunction(() => !ALS.running, null, {timeout: 90000});
   const saver = await p.evaluate(() => ({plan: ALS.sweep.plan, tickers: ALS.sweep.tickers, depth: ALS.sweep.searchDepth, blocked: ALS.sweep.blocked.length}));
   // sweeps view
+  await p.click('.nav [data-view="allist"]'); await shot("a06b-list-keywords"); const kwCol = await p.evaluate(() => document.querySelector(".allist tbody tr td:nth-child(4)").textContent);
   await p.click('.nav [data-view="alhist"]'); await p.click("[data-alopen]"); await p.waitForTimeout(300); await shot("a07-sweeps", true);
   // settings alerts tab
   await p.click('.nav [data-view="settings"]'); await p.click('[data-stab="alerts"]'); await shot("a08-settings");
@@ -57,9 +64,10 @@ const strip = h => String(h).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   await p.click('.nav [data-view="alfeed"]'); await p.click(".alitem [data-alact=committee]"); const jumped = await p.evaluate(() => ({app: S.app, view: S.view, ticker: document.querySelector("#ticker").value}));
   await p.click('[data-app="alerts"]');
   // reload persistence
-  await p.reload(); await p.waitForTimeout(800); const persisted = await p.evaluate(() => ({app: S.app, view: S.view, items: document.querySelectorAll(".alitem").length, list: ALS.list.length}));
+  await p.waitForTimeout(1500); await p.reload(); await p.waitForTimeout(1200); const persisted = await p.evaluate(() => ({app: S.app, view: S.view, items: document.querySelectorAll(".alitem").length, list: ALS.list.length}));
+  await p.click('[data-alseat="news"]'); await p.waitForTimeout(200); const afterReload = await p.evaluate(() => document.querySelectorAll("#alSeatPanel .sp-items li").length);
   await p.setViewportSize({width: 400, height: 860}); await p.waitForTimeout(200); await shot("a09-mobile"); await p.evaluate(() => document.querySelector("#alFeed").scrollIntoView()); await shot("a10-mobile-feed");
   const hscroll = await p.evaluate(() => document.documentElement.scrollWidth);
-  console.log(JSON.stringify({nav1, est, feed, urgentOnly, afterDismiss, unseen, saver, jumped, persisted, hscroll, alertsJson: JSON.parse(fs.readFileSync(jf, "utf8")), errors: errs}, null, 1));
+  console.log(JSON.stringify({typedUpper, kwPanel, kwCol, panel, pods, afterReload, nav1, est, feed, urgentOnly, afterDismiss, unseen, saver, jumped, persisted, hscroll, alertsJson: JSON.parse(fs.readFileSync(jf, "utf8")), errors: errs}, null, 1));
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });
