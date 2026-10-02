@@ -1,0 +1,9 @@
+{
+  "app": "ai-investment-committee",
+  "note": "Example. Replace with the watchlist.json exported from the app (Portfolio → Watchlist → watchlist.json).",
+  "profile": {"style": "Balanced (quality at a fair price)", "horizon": "Buy & hold (3–5 years)", "risk": "Moderate", "dd": "-25%"},
+  "settings": {"model": "claude-opus-5-5", "searchDepth": 0.5},
+  "tickers": [
+    {"ticker": "WTTR", "cadence": "monthly", "mode": "quick", "alerts": [{"type": "price_below", "value": "8"}]}
+  ]
+}

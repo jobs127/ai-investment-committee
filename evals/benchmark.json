@@ -1,0 +1,4 @@
+{
+  "tickers": ["AAPL", "KO", "XOM", "PLTR", "WTTR"],
+  "mode": "quick"
+}

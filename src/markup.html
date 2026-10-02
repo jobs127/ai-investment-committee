@@ -1,0 +1,96 @@
+<header class="mast">
+  <div class="wrap">
+    <div class="brand">
+      <div class="eyebrow" id="eyebrow">Private · Alpha Fund · v6</div>
+      <h1>AI Investment Committee</h1>
+    </div>
+    <span id="headChip" class="chip" hidden></span>
+    <nav class="nav" aria-label="Views">
+      <button data-view="analysis" aria-current="page">Analysis</button>
+      <button data-view="discover">Discover</button>
+      <button data-view="compare">Compare</button>
+      <button data-view="portfolio" id="navPortfolio">Portfolio</button>
+      <button data-view="record">Record</button>
+      <button data-view="history" id="navHistory" class="hist">History (0)</button>
+      <button data-view="lab">Lab</button>
+      <button data-view="settings">⚙ Settings</button>
+      <button id="navPdf" class="pdf" title="Print or save the current analysis">PDF</button>
+    </nav>
+  </div>
+</header>
+
+<div class="engine" id="engineBar"><div class="wrap"><span class="status">Connecting…</span></div></div>
+
+<div id="viewAnalysis">
+  <div class="console">
+    <div class="wrap">
+      <div class="lbl">Stock / ETF ticker</div>
+      <form class="row" id="runForm" autocomplete="off">
+        <input class="field" id="ticker" placeholder="AAPL, WTTR, XOM, VOO, PKN.WA…" maxlength="24" spellcheck="false" aria-label="Ticker">
+        <select class="field" id="modeSel" aria-label="Committee mode"></select>
+        <button class="btn primary" id="runBtn" type="submit">▶ Run committee</button>
+        <button class="btn rose" id="reBtn" type="button" hidden title="Re-run with the previous verdict as context">↻ Re-analysis</button>
+        <button class="btn" id="resumeBtn" type="button" hidden>⟳ Resume</button>
+        <button class="btn stop" id="stopBtn" type="button" hidden>■ Stop</button>
+      </form>
+      <div class="hint" id="modeNote"></div>
+      <details class="member" id="memberBox">
+        <summary><span class="lbl">Member's note &amp; documents</span> <span class="muted small" id="memberCount">empty</span></summary>
+        <div class="member-body">
+          <textarea class="field" id="memberNote" rows="3" placeholder="Your edge: what you know that the market may not. E.g. 'Two large Delaware operators are moving to recycled water next year; disposal permits in Reeves County are being cut after the earthquakes.'"></textarea>
+          <div class="row"><label class="btn small" for="docFiles">＋ Add documents</label><input type="file" id="docFiles" multiple hidden accept=".pdf,.txt,.md,.csv,.xlsx,.xls,.xlsm,.docx,.html,.htm">
+            <span class="small muted">PDF, Word, Excel, CSV or text — 10-Ks, transcripts, your own models. Put “transcript” in a file name for call-tone analysis. Or drop files here.</span></div>
+          <div class="chips" id="docChips"></div>
+        </div>
+      </details>
+      <div class="hint" id="hint"></div>
+      <div class="progress" id="progress" hidden>
+        <span id="progStep" class="num"></span>
+        <div class="bar"><i id="progBar" style="width:0%"></i></div>
+        <span id="progMeta" class="num"></span>
+      </div>
+    </div>
+  </div>
+
+  <main class="wrap" id="analysisMain">
+    <section id="pipeSec">
+      <div class="board-title">AI Investment Committee · staged pipeline · each stage reads every earlier stage</div>
+      <div class="board" id="board"></div>
+    </section>
+    <section id="results" hidden></section>
+    <section id="tabSec" hidden>
+      <div class="tabbar" role="tablist" id="tabBar"></div>
+      <div id="tabBody"></div>
+    </section>
+    <p class="disclaimer">Research tool, not investment advice. Agents can be wrong, data can be stale, and scores are model judgments. Verify figures before acting and size positions to your own circumstances.</p>
+  </main>
+
+  <div class="ask qa-ask" id="askBar" hidden>
+    <div class="wrap">
+      <form class="row" id="askForm" autocomplete="off">
+        <select class="field" id="askAgent" aria-label="Seat"></select>
+        <input class="field" id="askQ" placeholder="Ask the selected seat a question…" aria-label="Question">
+        <button class="btn primary" id="askBtn" type="submit">Ask →</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="viewDiscover" hidden></div>
+<div id="viewCompare" hidden></div>
+<div id="viewPortfolio" hidden></div>
+<div id="viewRecord" hidden></div>
+<div id="viewHistory" hidden>
+  <main class="wrap">
+    <div class="sechead"><span class="lbl">Analysis history</span>
+      <button class="btn small" id="exportHist" type="button">⇩ Export backup</button>
+      <label class="btn small" for="importHist">Import JSON</label>
+      <input type="file" id="importHist" accept="application/json" hidden>
+    </div>
+    <div class="hist" id="histList"></div>
+  </main>
+</div>
+<div id="viewLab" hidden></div>
+<div id="viewSettings" hidden></div>
+
+<div class="toast" id="toast" role="status" hidden></div>

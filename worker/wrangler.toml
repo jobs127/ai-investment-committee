@@ -1,0 +1,13 @@
+name = "aic-gateway"
+main = "gateway.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Required by the SEC: identify yourself. Replace with your name and email.
+SEC_USER_AGENT = "Your Name you@example.com"
+# Optional: restrict which site may call the gateway, e.g. "https://yourname.github.io"
+# ALLOWED_ORIGIN = "https://yourname.github.io"
+
+# Secrets (set with `npx wrangler secret put NAME` or in the Cloudflare dashboard):
+#   ACCESS_TOKEN       any long random string; paste the same value into the app's Settings → Data
+#   ANTHROPIC_API_KEY  optional; lets the app call Anthropic without storing a key in the browser

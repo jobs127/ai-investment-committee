@@ -1,0 +1,39 @@
+name: Benchmark (Lab)
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Label for this benchmark, e.g. prompts-v6.1"
+        required: true
+        default: "baseline"
+      mode:
+        description: "Committee mode"
+        type: choice
+        options: [quick, standard, full]
+        default: quick
+
+permissions:
+  contents: write
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run benchmark
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+        run: node runner/run.mjs eval --label "${{ inputs.label }}" --mode "${{ inputs.mode }}"
+      - name: Commit results
+        run: |
+          git config user.name "aic-bot"
+          git config user.email "aic-bot@users.noreply.github.com"
+          git add evals/results
+          git diff --cached --quiet || git commit -m "Benchmark ${{ inputs.label }}"
+          git push

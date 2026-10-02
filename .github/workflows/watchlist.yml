@@ -1,0 +1,54 @@
+name: Watchlist committee
+
+on:
+  schedule:
+    - cron: "17 13 * * 1-5"   # weekdays 13:17 UTC (7:17 am Denver, MDT)
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "Run one ticker now (blank = all due)"
+        required: false
+      all:
+        description: "Re-run every ticker, due or not"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: watchlist
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run due tickers and check alerts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.ticker }}" ]; then ARGS="--ticker ${{ inputs.ticker }}"; fi
+          if [ "${{ inputs.all }}" = "true" ]; then ARGS="$ARGS --all"; fi
+          node runner/run.mjs watchlist $ARGS
+      - name: Update the track record (first weekday of the month)
+        env:
+          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+        run: |
+          if [ "$(date -u +%d)" -le "03" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then node runner/run.mjs track; fi
+      - name: Commit results
+        run: |
+          git config user.name "aic-bot"
+          git config user.email "aic-bot@users.noreply.github.com"
+          git add results
+          git diff --cached --quiet || git commit -m "Committee results $(date -u +%F)"
+          git push

@@ -1,0 +1,21 @@
+name: Tests
+
+on:
+  push:
+    paths: ["src/**", "tests/**", "runner/**", "worker/**"]
+  pull_request:
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/core.test.js
+      - run: node tests/worker.test.mjs
+      - name: Build is up to date
+        run: |
+          bash build.sh
+          git diff --exit-code index.html || (echo "index.html is stale: run bash build.sh and commit" && exit 1)
