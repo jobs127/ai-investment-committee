@@ -1,10 +1,41 @@
-# AI Investment Committee — v6.0.4
+# AI Investment Committee + AI Stock Alert System — v6.1
+
+Two apps in one page. The switch in the header chooses between them; they share your API key, the data gateway, GitHub, plans and settings.
+- **Investment Committee** — a deep, one-off analysis of one stock (below).
+- **Stock Alert System** — watches a list of stocks for anything new and sends a morning digest plus urgent emails (next section).
+
 
 A staged committee of AI analysts debates one stock or ETF and delivers four things: a verdict, a probability-weighted expected value, a variant view (where the market is wrong), and an executable trade plan. You pick one of three cost plans (below). On **Max** every seat runs on **Claude Opus 5.5**; on **Saver** and **Balanced** the judges run on Opus 5.5 and the analysts on Sonnet 5.5. The numbers that matter (financials, ratios, quality scores, technicals, insider activity, filing-language changes, expected value and position sizing) are **computed in code from primary data**, not by the model.
 
 The app is still one HTML file, so it runs in Chrome on a Chromebook with nothing to install. The optional pieces are a free Cloudflare Worker that fetches SEC and price data, and GitHub Actions that run your watchlist on a schedule.
 
 > Research tool, not investment advice. Models make mistakes, data can be stale, and scores are judgments. Verify before acting.
+
+---
+
+## AI Stock Alert System (new in 6.1)
+
+**Sentinels** (each watches one kind of source):
+
+| Stage | Sentinel | Looks for | When |
+|---|---|---|---|
+| 0 · free | SEC Filings | 8-K items (results, exec changes, impairments, auditor change, non-reliance…), insider buys and sales (Form 4), planned sales (144), 13D/13G stakes, offerings (S-3/424B), late-filing notices, deals, delistings | every sweep + every 30 min in market hours |
+| 0 · free | Price & Calendar | moves ≥5%, unusual volume, 52-week highs/lows, your price levels, upcoming earnings | every sweep + every 30 min in market hours |
+| 1 | News & Trade Press | company news and industry trade publications | daily |
+| 1 | Newspapers | national papers and local papers where the company operates | daily |
+| 1 | Analyst Changes | upgrades, downgrades, initiations, price targets, estimate revisions | daily |
+| 1 | Social Chatter | Reddit, StockTwits, X, forums, blogs, Seeking Alpha — what people are saying and whether chatter is spiking | daily |
+| 1 | Podcasts & Interviews | management on podcasts, conference talks, episodes about the stock | weekly (Mondays) |
+| 1 | Regulators & Courts | permits, agency actions, lawsuits, government contracts | weekly |
+| 1 | Customers & Rivals | read-through from customers, competitors and suppliers | weekly |
+| 1 | Shorts & Ownership | short reports, short interest, big holders, index changes, credit ratings | weekly |
+| 2 | Alert Desk | removes duplicates and repeats, scores importance 1–5, checks your thesis, writes a one-line headline per stock | every sweep (free when nothing is new) |
+
+**On the Feed screen** you choose the plan (Saver / Balanced / Max), the web search depth (Light / Standard / Deep), and **Sources: All, incl. social** or **Reputable only** (drops Reddit, StockTwits, X, forums and anonymous blogs — edit that list in Settings → Alerts). **Sweep now** runs every sentinel for all tickers or one. Alerts are ranked, marked Urgent / Unverified / Update, show which thesis line they hit (from your Committee runs and Thesis tracker), and link to the source; **Committee →** opens a full analysis.
+
+**Morning digest by email:** on the Alert list press **⇩ alerts.json** and add that file to the repository root. The Committee queue workflow then sweeps at 4:30 am Central on weekdays (Saver's batch is done by 6:30), opens a **☀ Morning digest** GitHub issue at 6:30 (GitHub emails it to you; yesterday's digest is closed), opens a **🚨** issue for urgent items (high importance or anything that hits your thesis — change the rule in Settings → Alerts), and runs free filing and price checks every 30 minutes in market hours. Results are in `results/alerts/`; **Sync from GitHub** on the Feed shows them in the app.
+
+**Cost:** the SEC and price checks are free; the web sentinels cost mostly in web searches ($10 per 1,000). The Feed shows the estimate for a sweep and for a month of digests — roughly $3–6 per ticker per month on Saver with Standard search, less with Light.
 
 ---
 

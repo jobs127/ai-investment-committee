@@ -79,6 +79,7 @@ function loadState() {
   if (!LS.get("settings", {}).judgeModel && LS.get("settings", {}).model) S.settings.judgeModel = LS.get("settings", {}).model; // carry over a v6.0 model choice
   S.mode = LS.get("mode", S.settings.defaultMode || "standard");
   S.plan = LS.get("plan", S.settings.plan || "saver"); if (!A.PLANS[S.plan]) S.plan = "saver";
+  alLoad(); S.app = LS.get("app", "committee") === "alerts" ? "alerts" : "committee"; if (S.app === "alerts") S.view = "alfeed";
   S.key = LS.get("key", "") || (() => { try { return sessionStorage.getItem("aic6.key") || ""; } catch { return ""; } })();
   applyEnv();
 }
@@ -96,7 +97,7 @@ const persist = {
 /* ---------- cost bookkeeping (no extra toggles: plan, monthly budget, per-run cap) ---------- */
 const Cost = {
   month: () => new Date().toISOString().slice(0, 7),
-  spentThisMonth() { const m = Cost.month(); return S.index.filter(h => U.isNum(h.cost) && new Date(h.createdAt).toISOString().slice(0, 7) === m).reduce((a, h) => a + h.cost, 0) + (LS.get("extraSpend", {})[m] || 0); },
+  spentThisMonth() { const m = Cost.month(); return ALS.index.filter(h => U.isNum(h.cost) && new Date(h.createdAt).toISOString().slice(0, 7) === m).reduce((a, h) => a + h.cost, 0) + S.index.filter(h => U.isNum(h.cost) && new Date(h.createdAt).toISOString().slice(0, 7) === m).reduce((a, h) => a + h.cost, 0) + (LS.get("extraSpend", {})[m] || 0); },
   addExtra(usage) { if (!usage || !U.isNum(usage.cost)) return; const m = Cost.month(), x = LS.get("extraSpend", {}); x[m] = (x[m] || 0) + usage.cost; LS.set("extraSpend", x); },
   learn(run) { // remember what each seat really cost on each plan, so estimates get better over time
     if (run.status !== "done" || !run.plan || run.engine !== "api") return;

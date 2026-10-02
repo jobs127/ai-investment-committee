@@ -400,3 +400,58 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
 .depth-opt{padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);color:var(--fg-2);cursor:pointer;font:inherit;font-size:13px}
 .depth-opt[aria-checked="true"]{border-color:var(--accent);color:var(--fg);box-shadow:inset 0 0 0 1px var(--accent)}
 .depth-opt:disabled{opacity:.55;cursor:default}
+
+/* 6.1 app switch + AI Stock Alert System */
+.appswitch{display:inline-flex;padding:3px;gap:3px;border:1px solid var(--line-2);border-radius:999px;background:var(--sunk)}
+.appswitch button{display:inline-flex;align-items:center;gap:7px;border:0;background:none;color:var(--fg-2);font:600 10.5px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;padding:8px 13px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.appswitch button .dot{width:7px;height:7px;border-radius:50%;background:var(--line-2)}
+.appswitch button:hover{color:var(--fg)}
+.appswitch button[aria-selected="true"]{background:var(--panel-2);color:var(--fg);box-shadow:0 0 0 1px var(--line-2)}
+.appswitch button[data-app="committee"][aria-selected="true"] .dot{background:var(--c-cio)}
+.appswitch button[data-app="alerts"][aria-selected="true"] .dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 25%,transparent)}
+.app-alerts .brand h1{color:color-mix(in srgb,var(--bad) 30%,var(--fg))}
+.depths .sep{width:1px;height:18px;background:var(--line-2);margin:0 6px}
+.stage-l small{font-size:9px;letter-spacing:.12em;color:var(--muted);text-transform:none}
+.aldigest .dg{display:grid;gap:6px}
+.dgrow{display:grid;grid-template-columns:70px 1fr auto;gap:12px;align-items:center;text-align:left;background:var(--sunk);border:1px solid var(--line);border-left:3px solid var(--m);border-radius:var(--r);padding:9px 12px;color:var(--fg);font:inherit;cursor:pointer}
+.dgrow:hover{border-color:var(--line-2);border-left-color:var(--m)}
+.dgrow .tk{font:700 13px/1 var(--f-display);letter-spacing:.08em}
+.dgrow .hl{font-size:13.5px;line-height:1.4}
+.dgrow .meta{font:500 11px/1.2 var(--f-mono);color:var(--muted);white-space:nowrap}
+.dgrow .urg,.alitem .badge.urg{color:var(--on-bad,#fff);background:var(--bad);border-radius:3px;padding:2px 6px;margin-right:6px;font:700 9.5px/1.2 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
+.alhead .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;overflow:hidden}
+.alhead .seg button{background:none;border:0;color:var(--fg-2);padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+.alhead .seg button[aria-checked="true"]{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--fg)}
+.alday{margin:14px 0 4px}
+.alday-l{font:600 10.5px/1 var(--f-mono);letter-spacing:.24em;text-transform:uppercase;color:var(--muted);margin:0 0 8px 2px}
+.alitem{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:14px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;position:relative}
+.alitem.unseen::before{content:"";position:absolute;left:-1px;top:12px;bottom:12px;width:3px;border-radius:2px;background:var(--accent)}
+.alitem.dismissed{opacity:.5}
+.alitem .imp{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:2px}
+.alitem .imp b{font:700 22px/1 var(--f-display);color:var(--fg-2)}
+.alitem .imp span{font-size:7.5px;letter-spacing:1px;color:var(--muted)}
+.alitem.imp-4 .imp b{color:var(--warn)}.alitem.imp-5 .imp b{color:var(--bad)}.alitem.imp-3 .imp b{color:var(--fg)}
+.alitem.imp-5{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.alitem .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--fg-2)}
+.alitem .top .tk{font:700 12px/1 var(--f-display);letter-spacing:.08em;color:var(--fg)}
+.alitem .top .glyph{width:22px;height:22px;font-size:7.5px;border-width:1px}
+.alitem .badge{font:600 9.5px/1.2 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line-2);border-radius:3px;padding:2px 6px;color:var(--fg-2)}
+.alitem .badge.unv{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+.alitem .badge.urg{margin:0;border:0}
+.alitem .sent{margin-left:auto;font-size:11px}
+.alitem h4{margin:6px 0 4px;font:600 15px/1.35 var(--f-sans)}
+.alitem h4 a{color:var(--fg);text-decoration:none}.alitem h4 a:hover{color:var(--accent);text-decoration:underline}
+.alitem .sum{margin:0 0 4px;font-size:13.5px;line-height:1.5;color:var(--fg-2)}
+.alitem .why{margin:4px 0;font-size:13px;line-height:1.45}
+.alitem .why b{font:600 9.5px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--c-cio);margin-right:6px}
+.alitem .thit{margin:4px 0;font-size:12.5px;color:var(--c-devil)}
+.alitem .src{font-size:11.5px;color:var(--muted)}.alitem .src a{color:var(--fg-2)}
+.alitem .acts{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.allist input.field.small{width:100%;min-width:90px}
+.steps{margin:6px 0;padding-left:20px;line-height:1.6;font-size:13.5px}.steps li{margin-bottom:6px}
+@media (max-width:640px){
+  .appswitch{order:3;width:100%}.appswitch button{flex:1;justify-content:center;padding:9px 6px;letter-spacing:.06em}
+  .alitem{grid-template-columns:38px minmax(0,1fr)}.alitem .acts{grid-column:1/-1;flex-direction:row;justify-content:flex-end}
+  .dgrow{grid-template-columns:56px 1fr}.dgrow .meta{grid-column:2}
+}
+@media print{.alconsole,#alBoardSec,.alitem .acts,.alhead .seg,.alhead button,.alhead select,.appswitch{display:none!important}}

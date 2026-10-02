@@ -146,9 +146,9 @@ function renderEngine() {
   if (S.engine === null) { w.innerHTML = `<span class="status">Connecting…</span>`; return; }
   if (S.engine === "claude") { w.innerHTML = `<span class="status">✓ Claude account active</span><span class="note">Running inside claude.ai on your account's most capable model. Live web search and the data gateway aren't available here, so market figures come from model knowledge and are flagged unverified. For Opus 5.5 with live search and SEC data, use the GitHub version.</span>`; return; }
   if (S.engine === "none") { bar.classList.add("off"); w.innerHTML = `<span class="status">Engine unavailable</span><span class="note">This view can't reach Claude. Open the artifact on claude.ai and allow it to use Claude, or run index.html with an Anthropic API key.</span>`; return; }
-  if (S.settings.gatewayAnthropic && S.settings.gateway && !S._editKey) { w.innerHTML = `<span class="status">✓ Anthropic via gateway</span><span class="note">Calls go through your gateway, which holds the key · ${esc(A.PLANS[S.plan]?.label || "")} plan</span>${gw}`; return; }
+  if (S.settings.gatewayAnthropic && S.settings.gateway && !S._editKey) { w.innerHTML = `<span class="status">✓ Anthropic via gateway</span><span class="note">Calls go through your gateway, which holds the key · ${esc(A.PLANS[curPlan()]?.label || "")} plan</span>${gw}`; return; }
   if (S.key && !S._editKey) {
-    w.innerHTML = `<span class="status">✓ API key active</span><span class="note">Key ending ${esc(S.key.slice(-4))} · ${LS.get("key", "") ? "remembered on this device" : "this session only"} · ${esc(A.PLANS[S.plan]?.label || "")} plan</span>${gw}<button class="btn small" id="chgKey" type="button">🔑 Change key</button><button class="btn small" id="forgetKey" type="button">Forget</button>`;
+    w.innerHTML = `<span class="status">✓ API key active</span><span class="note">Key ending ${esc(S.key.slice(-4))} · ${LS.get("key", "") ? "remembered on this device" : "this session only"} · ${esc(A.PLANS[curPlan()]?.label || "")} plan</span>${gw}<button class="btn small" id="chgKey" type="button">🔑 Change key</button><button class="btn small" id="forgetKey" type="button">Forget</button>`;
     $("#chgKey").onclick = openKeyForm; $("#forgetKey").onclick = () => { S.key = ""; LS.del("key"); try { sessionStorage.removeItem("aic6.key"); } catch {} renderEngine(); };
   } else {
     bar.classList.add("off");
@@ -160,25 +160,38 @@ function renderEngine() {
 function openKeyForm() { S._editKey = true; renderEngine(); setTimeout(() => $("#keyIn")?.focus(), 0); }
 
 /* ---------------- nav ---------------- */
-const VIEWS = ["analysis", "discover", "compare", "portfolio", "record", "history", "lab", "settings"];
+const VIEWS = ["analysis", "discover", "compare", "portfolio", "record", "history", "lab", "settings", "alfeed", "allist", "alhist"];
+const curPlan = () => S.app === "alerts" ? ALS.settings.plan : S.plan;
 function updateNav() {
+  const al = S.app === "alerts";
+  $$(".nav .c-only").forEach(b => b.hidden = al); $$(".nav .a-only").forEach(b => b.hidden = !al);
+  $$(".appswitch [data-app]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.app === S.app)));
+  document.documentElement.classList.toggle("app-alerts", al);
+  $("#appTitle").textContent = al ? "AI Stock Alert System" : "AI Investment Committee";
+  const un = alUnseen(), unU = un.filter(i => i.urgent).length;
+  const bd = $("#alBadge"); bd.hidden = !un.length || al; bd.textContent = unU ? `${unU}!` : un.length;
+  const navFeed = document.querySelector('.nav [data-view="alfeed"]'); if (navFeed) navFeed.innerHTML = "Feed" + (un.length ? ` <span class="cnt">${un.length}</span>` : "");
+  $("#navAlList").textContent = `Alert list (${alOn().length})`;
   $("#navHistory").textContent = `History (${S.index.length})`;
   const due = S.watchlist.filter(isDue).length; $("#navPortfolio").innerHTML = "Portfolio" + (due ? ` <span class="cnt">${due}</span>` : "");
   VIEWS.forEach(v => { const b = document.querySelector(`.nav [data-view="${v}"]`); if (b) { if (S.view === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
     document.getElementById("view" + v[0].toUpperCase() + v.slice(1)).hidden = S.view !== v; });
   const hc = $("#headChip"), c = S.run?.cio;
-  if (S.run && c?.verdict) { hc.hidden = false; hc.style.color = verdictColor(c.verdict); hc.textContent = `${S.run.ticker} · ${c.verdict}`; }
+  if (al) { hc.hidden = !ALS.running && !unU; hc.style.color = ALS.running ? "var(--accent)" : "var(--bad)"; hc.textContent = ALS.running ? "Sweeping…" : `${unU} urgent`; }
+  else if (S.run && c?.verdict) { hc.hidden = false; hc.style.color = verdictColor(c.verdict); hc.textContent = `${S.run.ticker} · ${c.verdict}`; }
   else if (S.run) { hc.hidden = false; hc.style.color = "var(--fg-2)"; hc.textContent = `${S.run.ticker} · ${S.running ? "in session" : S.run.status}`; }
   else hc.hidden = true;
   const bgN = Object.keys(S.bg).length;
-  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6.0.4 · Claude · knowledge mode" : `Private · Alpha Fund · v6.0.4 · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
+  if (al) $("#eyebrow").textContent = `Private · Alpha Fund · v${A.VERSION} · ${A.PLANS[ALS.settings.plan]?.label || ""} plan · digest 6:30 am CT${ALS.running ? " · sweeping" : ""}`;
+  else $("#eyebrow").textContent = S.engine === "claude" ? `Private · Alpha Fund · v${A.VERSION} · Claude · knowledge mode` : `Private · Alpha Fund · v${A.VERSION} · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
 }
 function renderView() {
   if (S.view === "discover") renderDiscover(); else if (S.view === "compare") renderCompare(); else if (S.view === "portfolio") renderPortfolio();
   else if (S.view === "record") renderRecord(); else if (S.view === "history") renderHistory(); else if (S.view === "lab") renderLab(); else if (S.view === "settings") renderSettings();
+  else if (S.view === "alfeed") renderAlFeed(); else if (S.view === "allist") renderAlList(); else if (S.view === "alhist") renderAlHist();
 }
 function renderAll() { updateNav(); renderEngine(); renderConsole(); renderBoard(); renderResults(); renderTabs(); renderProgress(); if (S.view !== "analysis") renderView(); }
-function go(view) { S.view = view; updateNav(); renderView(); renderConsole(); scrollTo(0, 0); }
+function go(view) { if (/^al/.test(view)) S.alView = view; else if (view !== "settings") S.cView = view; S.view = view; updateNav(); renderView(); renderConsole(); scrollTo(0, 0); }
 
 async function openRun(id) {
   if (S.running) { toast("Wait for the current run to finish."); return; }
@@ -201,7 +214,7 @@ try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () 
 function bind() {
   document.querySelectorAll(".nav [data-view]").forEach(b => b.onclick = () => go(b.dataset.view));
   $("#navTheme").onclick = () => setTheme(themeIsLight(LS.get("theme", "dark")) ? "dark" : "light");
-  $("#navPdf").onclick = () => { if (!S.run) { toast("Run or open an analysis first."); return; } if (S.inClaude) { exportHTML(S.run); toast("Printing isn't available inside claude.ai — saving a printable report instead."); return; } go("analysis"); S.open = {}; S.run.seats.forEach(id => S.open[id] = true); S.tab = "minutes"; renderTabs(); setTimeout(() => window.print(), 60); };
+  $("#navPdf").onclick = () => { if (S.app === "alerts") { if (S.inClaude) { toast("Printing isn't available inside claude.ai."); return; } window.print(); return; } if (!S.run) { toast("Run or open an analysis first."); return; } if (S.inClaude) { exportHTML(S.run); toast("Printing isn't available inside claude.ai — saving a printable report instead."); return; } go("analysis"); S.open = {}; S.run.seats.forEach(id => S.open[id] = true); S.tab = "minutes"; renderTabs(); setTimeout(() => window.print(), 60); };
   $("#runForm").onsubmit = e => { e.preventDefault(); startRun(); };
   $("#reBtn").onclick = () => startRun({re: true});
   $("#resumeBtn").onclick = resumeRun; $("#stopBtn").onclick = stopRun;
@@ -241,7 +254,7 @@ function bind() {
     // history
     if (d.del) { e.stopPropagation(); if (d.confirm !== "1") { d.confirm = "1"; t.textContent = "Confirm"; setTimeout(() => { if (t.isConnected) { d.confirm = ""; t.textContent = "Delete"; } }, 3000); return; }
       await DB.delRun(d.del); S.index = S.index.filter(x => x.id !== d.del); LS.set("index", S.index); if (S.run?.id === d.del && !S.running) S.run = null; renderAll(); renderHistory(); return; }
-    if (t.classList.contains("hrow")) { openRun(d.id); return; }
+    if (t.classList.contains("hrow") && d.id) { openRun(d.id); return; }
     if (d.openrun) { openRun(d.openrun); return; }
     // discover
     if (d.disc) { loadDiscover(d.disc); return; }
@@ -285,7 +298,7 @@ function bind() {
   // report accordion
   const toggleRep = h => { const id = h.dataset.id, art = h.parentElement, open = art.classList.contains("closed"); S.open[id] = open; art.classList.toggle("closed", !open); h.setAttribute("aria-expanded", open); };
   document.addEventListener("click", e => { const h = e.target.closest(".rep>header[data-id]"); if (h && !e.target.closest("button")) toggleRep(h); });
-  document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".rep>header[data-id]")) { e.preventDefault(); toggleRep(e.target); } if (e.key === "Enter" && e.target.classList.contains("hrow")) openRun(e.target.dataset.id); });
+  document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".rep>header[data-id]")) { e.preventDefault(); toggleRep(e.target); } if (e.key === "Enter" && e.target.classList.contains("hrow")) { if (e.target.dataset.id) openRun(e.target.dataset.id); else if (e.target.dataset.alopen) alShowSweep(e.target.dataset.alopen); } });
   document.addEventListener("change", e => {
     const t = e.target, d = t.dataset;
     if (t.id === "lfSeat" || t.id === "lfType") { S.ledgerFilter = {seat: $("#lfSeat").value, type: $("#lfType").value}; renderTabs(); return; }
@@ -296,7 +309,7 @@ function bind() {
     if (t.id === "importAll") { const f = t.files[0]; if (f) importAll(f); t.value = ""; }
   });
   document.addEventListener("submit", async e => {
-    const f = e.target; if (!["jform", "ideaForm", "cmpForm", "labForm", "profileForm", "costForm", "dataForm", "seatsForm", "ghForm"].includes(f.id)) return;
+    const f = e.target; if (!["jform", "ideaForm", "cmpForm", "labForm", "profileForm", "costForm", "alSetForm", "dataForm", "seatsForm", "ghForm"].includes(f.id)) return;
     e.preventDefault();
     if (f.id === "jform" && S.run) { const j = {runId: S.run.id, ticker: S.run.ticker, date: U.today(), verdict: S.run.cio?.verdict, overall: S.run.cio?.overall, decision: $("#jDecision").value, price: $("#jPrice").value, size: $("#jSize").value, notes: $("#jNotes").value};
       if (!j.decision) { toast("Choose a decision."); return; } const i = S.journal.findIndex(x => x.runId === j.runId); if (i >= 0) S.journal[i] = j; else S.journal.unshift(j); persist.journal(); toast("Decision logged in the journal."); }
@@ -311,12 +324,14 @@ function bind() {
         discountRate: +v("sDR") || 9, terminalGrowth: +v("sTG") || 2.5, defaultMode: v("sMode")});
       S.settings.model = S.settings.judgeModel; S.plan = S.settings.plan; LS.set("plan", S.plan);
       LS.set("settings", S.settings); updateNav(); renderEngine(); renderConsole(); toast("Cost & model settings saved."); }
+    if (f.id === "alSetForm") { ALS.settings.urgentRule = $("#alRule").value; ALS.settings.blocked = $("#alBlocked").value.trim() || AL.DEFAULTS.blocked; alPersist.settings(); toast("Alert settings saved. Export alerts.json again for GitHub."); }
     if (f.id === "dataForm") { readDataForm(); LS.set("settings", S.settings); applyEnv(); renderEngine(); updateNav(); toast("Data settings saved."); }
     if (f.id === "seatsForm") { S.settings.customSeats = ["desk"].concat($$("[data-cs]").filter(x => x.checked && x.dataset.cs !== "desk").map(x => x.dataset.cs)); LS.set("settings", S.settings); toast("Seats saved. Choose Custom mode to use them."); }
     if (f.id === "ghForm") { Object.assign(S.settings, {ghOwner: $("#ghO").value.trim(), ghRepo: $("#ghR").value.trim(), ghBranch: $("#ghB").value.trim() || "main"}); LS.set("settings", S.settings); toast("GitHub settings saved."); }
   });
-  addEventListener("beforeunload", e => { const batchOnly = S.run && S.run.seats.every(id => S.run.reports[id].status !== "running"); if ((S.running && !batchOnly) || Object.keys(S.bg).length) { e.preventDefault(); e.returnValue = ""; } });
-  setInterval(() => { if (S.running && S.run?.batch) { renderBoard(); renderProgress(); } }, 30000);
+  alBind();
+  addEventListener("beforeunload", e => { if (ALS.running && ALS.sweep && Object.values(ALS.sweep.reports).some(r => r.status === "running")) { e.preventDefault(); e.returnValue = ""; return; } const batchOnly = S.run && S.run.seats.every(id => S.run.reports[id].status !== "running"); if ((S.running && !batchOnly) || Object.keys(S.bg).length) { e.preventDefault(); e.returnValue = ""; } });
+  setInterval(() => { if (S.running && S.run?.batch) { renderBoard(); renderProgress(); } if (ALS.running && S.view === "alfeed") renderAlBoard(); }, 30000);
 }
 function readDataForm() { if (!$("#gUrl")) return; Object.assign(S.settings, {gateway: $("#gUrl").value.trim().replace(/\/+$/, ""), gatewayToken: $("#gTok").value.trim(), gatewayAnthropic: $("#gAnth").value === "true"}); }
 function readHoldings() { $$("[data-hi]").forEach(tr => { const h = S.holdings[+tr.dataset.hi]; if (!h) return; tr.querySelectorAll("[data-hf]").forEach(inp => { h[inp.dataset.hf] = inp.dataset.hf === "ticker" ? U.normTicker(inp.value) : inp.value.trim(); }); }); }
@@ -345,6 +360,7 @@ async function checkAlerts() {
   renderAll();
   S.engine = await detectEngine(); applyEnv();
   renderAll();
+  alBoot();
   if (waiting.length && S.engine === "api" && (S.key || (S.settings.gatewayAnthropic && S.settings.gateway))) {
     toast(`Picking up ${waiting.length} run${waiting.length > 1 ? "s" : ""} waiting at Anthropic's Batch API.`, 5000);
     for (const r of waiting) { if (S.run && r.id === S.run.id && !S.running) execute(r); else continueQuiet(r); }

@@ -143,6 +143,7 @@ async function runJobs(run, jobs, hooks) {
   const res = await Promise.allSettled([first.p, ...rest.map(r => r.p)]);
   const bad = res.find(r => r.status === "rejected"); if (bad) throw bad.reason;
 }
+PL.runJobs = runJobs;
 E.batch.cancel = async function (id, hooks) {
   const env = AIC.env, st = hooks.settings;
   const via = (st.gatewayAnthropic || E._batchViaGateway) && env.gateway;

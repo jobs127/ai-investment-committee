@@ -3,7 +3,7 @@
 "use strict";
 const AIC = G.AIC = G.AIC || {};
 
-AIC.VERSION = "6.0.4";
+AIC.VERSION = "6.1.0";
 AIC.PROMPT_VERSION = "p6.3";
 
 AIC.DEFAULTS = {
@@ -308,7 +308,7 @@ AIC.SCHEMAS = {
 };
 AIC.schemaFor = function (key) {
   const sc = AIC.SCHEMAS[key] || {extra:{}};
-  const props = Object.assign({}, BASE, sc.extra);
+  const props = sc.bare ? Object.assign({summary: BASE.summary}, sc.extra) : Object.assign({}, BASE, sc.extra);
   return {type:"object", properties:props, required:["summary"].concat(sc.score ? [sc.score] : [])};
 };
 })(typeof globalThis !== "undefined" ? globalThis : window);

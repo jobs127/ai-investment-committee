@@ -15,6 +15,7 @@ jobs:
           node-version: 20
       - run: node tests/core.test.js
       - run: node tests/worker.test.mjs
+      - run: node tests/alerts.test.js
       - name: Build is up to date
         run: |
           bash build.sh

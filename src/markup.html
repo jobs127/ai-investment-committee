@@ -2,18 +2,25 @@
 <header class="mast">
   <div class="wrap">
     <div class="brand">
-      <div class="eyebrow" id="eyebrow">Private · Alpha Fund · v6.0.4</div>
-      <h1>AI Investment Committee</h1>
+      <div class="eyebrow" id="eyebrow">Private · Alpha Fund · v6.1</div>
+      <h1 id="appTitle">AI Investment Committee</h1>
+    </div>
+    <div class="appswitch" role="tablist" aria-label="Choose the app">
+      <button type="button" role="tab" data-app="committee" aria-selected="true"><span class="dot"></span>Investment Committee</button>
+      <button type="button" role="tab" data-app="alerts" aria-selected="false"><span class="dot"></span>Stock Alerts <span class="cnt" id="alBadge" hidden></span></button>
     </div>
     <span id="headChip" class="chip" hidden></span>
     <nav class="nav" aria-label="Views">
-      <button data-view="analysis" aria-current="page">Analysis</button>
-      <button data-view="discover">Discover</button>
-      <button data-view="compare">Compare</button>
-      <button data-view="portfolio" id="navPortfolio">Portfolio</button>
-      <button data-view="record">Record</button>
-      <button data-view="history" id="navHistory" class="hist">History (0)</button>
-      <button data-view="lab">Lab</button>
+      <button data-view="analysis" class="c-only" aria-current="page">Analysis</button>
+      <button data-view="discover" class="c-only">Discover</button>
+      <button data-view="compare" class="c-only">Compare</button>
+      <button data-view="portfolio" class="c-only" id="navPortfolio">Portfolio</button>
+      <button data-view="record" class="c-only">Record</button>
+      <button data-view="history" id="navHistory" class="hist c-only">History (0)</button>
+      <button data-view="lab" class="c-only">Lab</button>
+      <button data-view="alfeed" class="a-only" hidden>Feed</button>
+      <button data-view="allist" class="a-only" id="navAlList" hidden>Alert list</button>
+      <button data-view="alhist" class="a-only hist" hidden>Sweeps</button>
       <button data-view="settings">⚙ Settings</button>
       <button id="navTheme" class="theme-btn" type="button" title="Dark screen is on — click for light">☾ Dark</button>
       <button id="navPdf" class="pdf" title="Print or save the current analysis">PDF</button>
@@ -96,6 +103,17 @@
   </main>
 </div>
 <div id="viewLab" hidden></div>
+<div id="viewAlfeed" hidden>
+  <div class="console alconsole"><div class="wrap" id="alTop"></div></div>
+  <main class="wrap">
+    <section id="alBoardSec"><div class="board-title">Stock Alert System · free checks → web sentinels → Alert Desk</div><div class="board" id="alBoard"></div></section>
+    <section id="alDigest"></section>
+    <section id="alFeed"></section>
+    <p class="disclaimer">Alerts are leads, not facts. Social posts are unverified, and sentinels can miss or misread things. Open the source before acting.</p>
+  </main>
+</div>
+<div id="viewAllist" hidden></div>
+<div id="viewAlhist" hidden></div>
 <div id="viewSettings" hidden></div>
 
 <div class="toast" id="toast" role="status" hidden></div>

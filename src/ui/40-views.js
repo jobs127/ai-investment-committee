@@ -241,7 +241,7 @@ async function runLab() {
 /* ---------------- Settings ---------------- */
 function renderSettings() {
   const st = S.settings, p = S.profile;
-  const tabs = [["profile", "Profile"], ["engine", "Cost & models"], ["data", "Data"], ["seats", "Seats"], ["github", "GitHub"], ["storage", "Appearance & storage"]];
+  const tabs = [["profile", "Profile"], ["engine", "Cost & models"], ["alerts", "Alerts"], ["data", "Data"], ["seats", "Seats"], ["github", "GitHub"], ["storage", "Appearance & storage"]];
   const sel = (id, opts, val) => `<select class="field" id="${id}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(val) === String(v) ? "selected" : ""}>${esc(l)}</option>`; }).join("")}</select>`;
   const f = (id, label, ctl, wide) => `<div class="f ${wide ? "wide" : ""}"><label class="lbl" for="${id}">${label}</label>${ctl}</div>`;
   const inp = (id, val, ph, type) => `<input class="field" id="${id}" value="${esc(val ?? "")}" placeholder="${esc(ph || "")}" ${type ? `type="${type}"` : ""} spellcheck="false">`;
@@ -279,6 +279,12 @@ function renderSettings() {
     ${f("sTG", "Terminal growth %", inp("sTG", st.terminalGrowth))}
     </div></details>
     <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button></div></form>`; }
+  if (S.setTab === "alerts") { const a = ALS.settings;
+    body = `<form class="card" id="alSetForm"><p class="small">Settings for the <b>AI Stock Alert System</b>. Plan, web-search depth and sources are chosen on the Feed screen; the tickers on the Alert list.</p><div class="pgrid">
+    ${f("alRule", "Send an urgent email for", sel("alRule", Object.entries(AL.URGENT_RULES), a.urgentRule), true)}
+    ${f("alBlocked", "Sites left out when you choose “Reputable only”", `<textarea class="field" id="alBlocked" rows="3">${esc(a.blocked)}</textarea>`, true)}
+    </div><p class="small muted">The morning digest arrives at 6:30 am Central on weekdays through the GitHub schedule (see Alert list). Weekly sentinels — podcasts, regulators, customers & rivals, shorts & ownership — run in Monday's digest; daily ones every weekday. A manual sweep always runs all of them.</p>
+    <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button><button class="btn" type="button" id="alBlockReset">Reset the list</button></div></form>`; }
   if (S.setTab === "data") body = `<form class="card" id="dataForm"><p class="small">The <b>data gateway</b> is a tiny Cloudflare Worker (in the repo's <code>worker/</code> folder) that fetches SEC EDGAR and price data for the browser, which those sites block directly. It can also hold your Anthropic key so the key never sits in the browser.</p>
     ${S.inClaude ? `<p class="warnline">Inside claude.ai the page can't reach a gateway. These settings apply to the standalone version.</p>` : ""}
     <div class="pgrid">${f("gUrl", "Gateway URL", inp("gUrl", st.gateway, "https://aic-gateway.yourname.workers.dev"), true)}

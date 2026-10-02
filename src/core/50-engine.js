@@ -62,7 +62,7 @@ E.buildParams = function (o) {
   const content = (o.blocks || []).map(b => ({type: "text", text: b.text}));
   if (cache && content.length) content[content.length - 1].cache_control = {type: "ephemeral"};
   content.push({type: "text", text: o.task + (o.schemaKey ? E.jsonInstruction(o.schemaKey) : "")});
-  const tools = o.maxUses > 0 ? [{type: st.toolType || "web_search_20250305", name: "web_search", max_uses: o.maxUses}] : undefined;
+  const tools = o.maxUses > 0 ? [{type: st.toolType || "web_search_20250305", name: "web_search", max_uses: o.maxUses, ...((o.blockedDomains || []).length ? {blocked_domains: o.blockedDomains} : {})}] : undefined;
   return {model: o.model, max_tokens: +o.maxTokens || +st.maxTokens || 8000, system, messages: [{role: "user", content}], ...(tools ? {tools} : {})};
 };
 

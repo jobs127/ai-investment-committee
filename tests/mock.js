@@ -138,7 +138,17 @@ function anthropicMessage(body) {
     content.push({type: "web_search_tool_result", tool_use_id: "s0", content: [{type: "web_search_result", url: "https://example.com/" + (key || "q").replace(/\W/g, ""), title: "Example source"}]});
   }
   let data = null, text = "";
-  if (isDigest) text = "DIGEST: water volumes 820→905 MMbbl; revenue 1520→1610.";
+  const al = task.match(/ALERT SENTINEL: ([A-Z&' ]+?) — (\S+)/), ad = task.match(/ALERT DESK — (\S+)/);
+  if (al) { const nm = al[1].trim(), t = al[2]; const slug = nm.toLowerCase().replace(/\W+/g, "-");
+    data = nm === "PODCASTS & INTERVIEWS" ? {summary: "Nothing new.", nothing_new: true, items: []} : {summary: nm + " found items.", nothing_new: false, items: [
+      {title: `${t} ${nm.toLowerCase()} item one`, summary: "Something happened with a number: 12%.", url: `https://example.com/${slug}/${t}/1`, source: nm === "SOCIAL CHATTER" ? "r/stocks" : "Reuters", date: "2026-09-30", kind: "news", sentiment: "positive", importance: nm === "ANALYST CHANGES" ? 4 : 3, reputable: nm !== "SOCIAL CHATTER"},
+      {title: `${t} duplicate of item one`, summary: "Same event elsewhere.", url: `https://example.org/${slug}/${t}/dup`, source: "Yahoo", date: "2026-09-30", kind: "news", sentiment: "positive", importance: 2, reputable: true}],
+      ...(nm === "SOCIAL CHATTER" ? {buzz: "elevated", tone: "bullish"} : {})};
+    text = `- ${nm}: mock findings for ${t}`; }
+  else if (ad) { const lines = task.split("\n"), refs = []; lines.forEach((l, k) => { const m = l.match(/^\[(\d+)\]/); if (m) refs.push({i: +m[1], dup: /duplicate/.test(lines[k + 1] || "")}); });
+    data = {headline: `${ad[1]}: analyst upgrade and new contract news.`, mood: "positive", items: refs.filter(r => !r.dup).map(r => r.i).map((i, k) => ({ref: i, also: refs.some(r => r.i === i + 1 && r.dup) ? [i + 1] : [], title: "Edited headline " + i, why: "Matters because of the recycling thesis.", importance: k === 0 ? 4 : 3, thesis_hit: k === 0 ? "Monitor: recycling contracts" : "", novelty: "new", sentiment: "positive"}))};
+    text = "Two things matter today."; }
+  else if (isDigest) text = "DIGEST: water volumes 820→905 MMbbl; revenue 1520→1610.";
   else if (isRepair) text = "```json\n" + JSON.stringify({summary: "repaired", score_fundamentals: 7, intrinsic_low: 11, intrinsic_high: 15}) + "\n```";
   else if (isIdeas) { text = "Ideas found."; data = {summary: "ideas", ideas: [{ticker: "WTTR", name: "Select Water Solutions", situation: "Capex cliff", why_overlooked: "Classified as oilfield services", leading_signal: "Recycling contracts", catalyst: "Q3", key_risk: "Activity"}]}; }
   else if (isCompare) { text = "WTTR ranks first."; data = {summary: "rank", ranking: [{ticker: "WTTR", rank: 1, reason: "Best EV"}, {ticker: "XOM", rank: 2, reason: "Lower upside"}]}; }

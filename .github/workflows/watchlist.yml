@@ -1,7 +1,8 @@
-name: Committee queue (watchlist + benchmarks)
+name: Committee queue (watchlist, benchmarks, stock alerts)
 
 # Runs every 30 minutes. Each run advances queued committee runs by one step (Saver plan = Anthropic Batch API,
 # half price), starts watchlist tickers that are due, checks price alerts once a day, and commits results.
+# Stock Alert System (alerts.json): 4:30 am Central sweep, 6:30 am digest issue, free urgent checks in market hours.
 on:
   schedule:
     - cron: "7,37 * * * *"
@@ -37,6 +38,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then echo "No ANTHROPIC_API_KEY secret yet — nothing to do."; exit 0; fi
           ARGS=""

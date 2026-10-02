@@ -412,23 +412,85 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
 .depth-opt{padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);color:var(--fg-2);cursor:pointer;font:inherit;font-size:13px}
 .depth-opt[aria-checked="true"]{border-color:var(--accent);color:var(--fg);box-shadow:inset 0 0 0 1px var(--accent)}
 .depth-opt:disabled{opacity:.55;cursor:default}
+
+/* 6.1 app switch + AI Stock Alert System */
+.appswitch{display:inline-flex;padding:3px;gap:3px;border:1px solid var(--line-2);border-radius:999px;background:var(--sunk)}
+.appswitch button{display:inline-flex;align-items:center;gap:7px;border:0;background:none;color:var(--fg-2);font:600 10.5px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;padding:8px 13px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.appswitch button .dot{width:7px;height:7px;border-radius:50%;background:var(--line-2)}
+.appswitch button:hover{color:var(--fg)}
+.appswitch button[aria-selected="true"]{background:var(--panel-2);color:var(--fg);box-shadow:0 0 0 1px var(--line-2)}
+.appswitch button[data-app="committee"][aria-selected="true"] .dot{background:var(--c-cio)}
+.appswitch button[data-app="alerts"][aria-selected="true"] .dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 25%,transparent)}
+.app-alerts .brand h1{color:color-mix(in srgb,var(--bad) 30%,var(--fg))}
+.depths .sep{width:1px;height:18px;background:var(--line-2);margin:0 6px}
+.stage-l small{font-size:9px;letter-spacing:.12em;color:var(--muted);text-transform:none}
+.aldigest .dg{display:grid;gap:6px}
+.dgrow{display:grid;grid-template-columns:70px 1fr auto;gap:12px;align-items:center;text-align:left;background:var(--sunk);border:1px solid var(--line);border-left:3px solid var(--m);border-radius:var(--r);padding:9px 12px;color:var(--fg);font:inherit;cursor:pointer}
+.dgrow:hover{border-color:var(--line-2);border-left-color:var(--m)}
+.dgrow .tk{font:700 13px/1 var(--f-display);letter-spacing:.08em}
+.dgrow .hl{font-size:13.5px;line-height:1.4}
+.dgrow .meta{font:500 11px/1.2 var(--f-mono);color:var(--muted);white-space:nowrap}
+.dgrow .urg,.alitem .badge.urg{color:var(--on-bad,#fff);background:var(--bad);border-radius:3px;padding:2px 6px;margin-right:6px;font:700 9.5px/1.2 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
+.alhead .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;overflow:hidden}
+.alhead .seg button{background:none;border:0;color:var(--fg-2);padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+.alhead .seg button[aria-checked="true"]{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--fg)}
+.alday{margin:14px 0 4px}
+.alday-l{font:600 10.5px/1 var(--f-mono);letter-spacing:.24em;text-transform:uppercase;color:var(--muted);margin:0 0 8px 2px}
+.alitem{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:14px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;position:relative}
+.alitem.unseen::before{content:"";position:absolute;left:-1px;top:12px;bottom:12px;width:3px;border-radius:2px;background:var(--accent)}
+.alitem.dismissed{opacity:.5}
+.alitem .imp{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:2px}
+.alitem .imp b{font:700 22px/1 var(--f-display);color:var(--fg-2)}
+.alitem .imp span{font-size:7.5px;letter-spacing:1px;color:var(--muted)}
+.alitem.imp-4 .imp b{color:var(--warn)}.alitem.imp-5 .imp b{color:var(--bad)}.alitem.imp-3 .imp b{color:var(--fg)}
+.alitem.imp-5{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.alitem .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--fg-2)}
+.alitem .top .tk{font:700 12px/1 var(--f-display);letter-spacing:.08em;color:var(--fg)}
+.alitem .top .glyph{width:22px;height:22px;font-size:7.5px;border-width:1px}
+.alitem .badge{font:600 9.5px/1.2 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line-2);border-radius:3px;padding:2px 6px;color:var(--fg-2)}
+.alitem .badge.unv{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+.alitem .badge.urg{margin:0;border:0}
+.alitem .sent{margin-left:auto;font-size:11px}
+.alitem h4{margin:6px 0 4px;font:600 15px/1.35 var(--f-sans)}
+.alitem h4 a{color:var(--fg);text-decoration:none}.alitem h4 a:hover{color:var(--accent);text-decoration:underline}
+.alitem .sum{margin:0 0 4px;font-size:13.5px;line-height:1.5;color:var(--fg-2)}
+.alitem .why{margin:4px 0;font-size:13px;line-height:1.45}
+.alitem .why b{font:600 9.5px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--c-cio);margin-right:6px}
+.alitem .thit{margin:4px 0;font-size:12.5px;color:var(--c-devil)}
+.alitem .src{font-size:11.5px;color:var(--muted)}.alitem .src a{color:var(--fg-2)}
+.alitem .acts{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.allist input.field.small{width:100%;min-width:90px}
+.steps{margin:6px 0;padding-left:20px;line-height:1.6;font-size:13.5px}.steps li{margin-bottom:6px}
+@media (max-width:640px){
+  .appswitch{order:3;width:100%}.appswitch button{flex:1;justify-content:center;padding:9px 6px;letter-spacing:.06em}
+  .alitem{grid-template-columns:38px minmax(0,1fr)}.alitem .acts{grid-column:1/-1;flex-direction:row;justify-content:flex-end}
+  .dgrow{grid-template-columns:56px 1fr}.dgrow .meta{grid-column:2}
+}
+@media print{.alconsole,#alBoardSec,.alitem .acts,.alhead .seg,.alhead button,.alhead select,.appswitch{display:none!important}}
 </style>
 <script>try{var t=localStorage.getItem("aic6.theme");t=t?JSON.parse(t):"dark";if(t==="light"||(t==="system"&&matchMedia("(prefers-color-scheme: light)").matches))document.documentElement.classList.add("theme-light")}catch(e){}</script>
 <header class="mast">
   <div class="wrap">
     <div class="brand">
-      <div class="eyebrow" id="eyebrow">Private · Alpha Fund · v6.0.4</div>
-      <h1>AI Investment Committee</h1>
+      <div class="eyebrow" id="eyebrow">Private · Alpha Fund · v6.1</div>
+      <h1 id="appTitle">AI Investment Committee</h1>
+    </div>
+    <div class="appswitch" role="tablist" aria-label="Choose the app">
+      <button type="button" role="tab" data-app="committee" aria-selected="true"><span class="dot"></span>Investment Committee</button>
+      <button type="button" role="tab" data-app="alerts" aria-selected="false"><span class="dot"></span>Stock Alerts <span class="cnt" id="alBadge" hidden></span></button>
     </div>
     <span id="headChip" class="chip" hidden></span>
     <nav class="nav" aria-label="Views">
-      <button data-view="analysis" aria-current="page">Analysis</button>
-      <button data-view="discover">Discover</button>
-      <button data-view="compare">Compare</button>
-      <button data-view="portfolio" id="navPortfolio">Portfolio</button>
-      <button data-view="record">Record</button>
-      <button data-view="history" id="navHistory" class="hist">History (0)</button>
-      <button data-view="lab">Lab</button>
+      <button data-view="analysis" class="c-only" aria-current="page">Analysis</button>
+      <button data-view="discover" class="c-only">Discover</button>
+      <button data-view="compare" class="c-only">Compare</button>
+      <button data-view="portfolio" class="c-only" id="navPortfolio">Portfolio</button>
+      <button data-view="record" class="c-only">Record</button>
+      <button data-view="history" id="navHistory" class="hist c-only">History (0)</button>
+      <button data-view="lab" class="c-only">Lab</button>
+      <button data-view="alfeed" class="a-only" hidden>Feed</button>
+      <button data-view="allist" class="a-only" id="navAlList" hidden>Alert list</button>
+      <button data-view="alhist" class="a-only hist" hidden>Sweeps</button>
       <button data-view="settings">⚙ Settings</button>
       <button id="navTheme" class="theme-btn" type="button" title="Dark screen is on — click for light">☾ Dark</button>
       <button id="navPdf" class="pdf" title="Print or save the current analysis">PDF</button>
@@ -511,6 +573,17 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
   </main>
 </div>
 <div id="viewLab" hidden></div>
+<div id="viewAlfeed" hidden>
+  <div class="console alconsole"><div class="wrap" id="alTop"></div></div>
+  <main class="wrap">
+    <section id="alBoardSec"><div class="board-title">Stock Alert System · free checks → web sentinels → Alert Desk</div><div class="board" id="alBoard"></div></section>
+    <section id="alDigest"></section>
+    <section id="alFeed"></section>
+    <p class="disclaimer">Alerts are leads, not facts. Social posts are unverified, and sentinels can miss or misread things. Open the source before acting.</p>
+  </main>
+</div>
+<div id="viewAllist" hidden></div>
+<div id="viewAlhist" hidden></div>
 <div id="viewSettings" hidden></div>
 
 <div class="toast" id="toast" role="status" hidden></div>
@@ -521,7 +594,7 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
 "use strict";
 const AIC = G.AIC = G.AIC || {};
 
-AIC.VERSION = "6.0.4";
+AIC.VERSION = "6.1.0";
 AIC.PROMPT_VERSION = "p6.3";
 
 AIC.DEFAULTS = {
@@ -826,7 +899,7 @@ AIC.SCHEMAS = {
 };
 AIC.schemaFor = function (key) {
   const sc = AIC.SCHEMAS[key] || {extra:{}};
-  const props = Object.assign({}, BASE, sc.extra);
+  const props = sc.bare ? Object.assign({summary: BASE.summary}, sc.extra) : Object.assign({}, BASE, sc.extra);
   return {type:"object", properties:props, required:["summary"].concat(sc.score ? [sc.score] : [])};
 };
 })(typeof globalThis !== "undefined" ? globalThis : window);
@@ -2228,7 +2301,7 @@ E.buildParams = function (o) {
   const content = (o.blocks || []).map(b => ({type: "text", text: b.text}));
   if (cache && content.length) content[content.length - 1].cache_control = {type: "ephemeral"};
   content.push({type: "text", text: o.task + (o.schemaKey ? E.jsonInstruction(o.schemaKey) : "")});
-  const tools = o.maxUses > 0 ? [{type: st.toolType || "web_search_20250305", name: "web_search", max_uses: o.maxUses}] : undefined;
+  const tools = o.maxUses > 0 ? [{type: st.toolType || "web_search_20250305", name: "web_search", max_uses: o.maxUses, ...((o.blockedDomains || []).length ? {blocked_domains: o.blockedDomains} : {})}] : undefined;
   return {model: o.model, max_tokens: +o.maxTokens || +st.maxTokens || 8000, system, messages: [{role: "user", content}], ...(tools ? {tools} : {})};
 };
 
@@ -2603,6 +2676,7 @@ async function runJobs(run, jobs, hooks) {
   const res = await Promise.allSettled([first.p, ...rest.map(r => r.p)]);
   const bad = res.find(r => r.status === "rejected"); if (bad) throw bad.reason;
 }
+PL.runJobs = runJobs;
 E.batch.cancel = async function (id, hooks) {
   const env = AIC.env, st = hooks.settings;
   const via = (st.gatewayAnthropic || E._batchViaGateway) && env.gateway;
@@ -2803,6 +2877,395 @@ PL.ask = async function (run, seatId, question, hooks) {
   const task = `=== QUESTION FOR ${seat.name.toUpperCase()} (${seat.role}) ===\n${prev ? "Your earlier answers to this member:\n" + prev + "\n\n" : ""}A fund member asks you directly: ${question}\n\nAnswer in character, directly and concisely (under 250 words). Back claims with the committee record or fresh evidence, and say plainly if the question changes your view. No JSON block is needed for this answer.`;
   return E.call({engine: run.engine, settings: st, apiKey: hooks.apiKey, model: PL.modelFor(seatId, run, st), system: P.houseRules(run.engine, run.ticker, run),
     blocks: P.recordBlocks(run, 99, {full: true}), task, schemaKey: null, maxUses: run.engine === "api" && +st.searchDepth ? 2 : 0, signal: hooks.signal, onText: hooks.onText, onSearch: () => {}});
+};
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+/* ---- src/core/65-alerts.js ---- */
+/* AI Stock Alert System — core (DOM-free; runs in the browser and in the GitHub runner).
+   A "sweep" checks a list of tickers for anything new since the last look:
+     stage 0  free, computed in code: SEC filings (8-K items, Form 4, 144, 13D/G, offerings, late filings) and price/volume/calendar
+     stage 1  web sentinels (each searches one kind of source)
+     stage 2  the Alert Desk: removes duplicates, scores importance, checks your thesis, writes the headline
+   It reuses the committee engine: the same plans (Saver = Batch API), prompt caching and cost accounting. */
+(function (G) {
+"use strict";
+const AIC = G.AIC, U = AIC.util, E = AIC.engine, PL = AIC.pipeline, S = AIC.S;
+const AL = AIC.alerts = {};
+const isN = U.isNum;
+
+AL.SENTINELS = [
+  {id: "sec",     code: "SEC", name: "SEC Filings",          stage: 0, free: true, color: "var(--c-desk)",     blurb: "8-Ks, insider buys & sales, 144s, 13D/G stakes, offerings, late filings"},
+  {id: "tape",    code: "PX",  name: "Price & Calendar",     stage: 0, free: true, color: "var(--c-chart)",    blurb: "Big moves, unusual volume, 52-week extremes, your price levels, earnings dates"},
+  {id: "news",    code: "NW",  name: "News & Trade Press",   stage: 1, search: 4, cadence: "daily",  color: "var(--c-scout)",    blurb: "Company news, deals, contracts, lawsuits, accidents, trade publications"},
+  {id: "press",   code: "NP",  name: "Newspapers",           stage: 1, search: 3, cadence: "daily",  color: "var(--c-historian)", blurb: "National papers and local papers where the company operates"},
+  {id: "analyst", code: "AN",  name: "Analyst Changes",      stage: 1, search: 3, cadence: "daily",  color: "var(--c-hunter)",   blurb: "Upgrades, downgrades, initiations, price targets, estimate revisions"},
+  {id: "social",  code: "SO",  name: "Social Chatter",       stage: 1, search: 4, cadence: "daily",  color: "var(--c-sent)",     blurb: "Reddit, StockTwits, X, forums, blogs, Seeking Alpha — what people are saying"},
+  {id: "pods",    code: "PC",  name: "Podcasts & Interviews", stage: 1, search: 3, cadence: "weekly", color: "var(--c-expect)",   blurb: "Management on podcasts, conference talks, episodes about the stock"},
+  {id: "regs",    code: "RG",  name: "Regulators & Courts",  stage: 1, search: 3, cadence: "weekly", color: "var(--c-forensic)", blurb: "Permits, agency actions, lawsuits, government contracts"},
+  {id: "peers",   code: "PR",  name: "Customers & Rivals",   stage: 1, search: 3, cadence: "weekly", color: "var(--c-industry)", blurb: "Read-through from customers, competitors and suppliers"},
+  {id: "shorts",  code: "SH",  name: "Shorts & Ownership",   stage: 1, search: 3, cadence: "weekly", color: "var(--c-bear)",     blurb: "Short reports, short interest, big holders, index changes, credit ratings"},
+  {id: "desk",    code: "AD",  name: "Alert Desk",           stage: 2, color: "var(--c-cio)",      blurb: "Removes duplicates, ranks what matters, checks your thesis"}
+];
+AL.sentinel = id => AL.SENTINELS.find(s => s.id === id);
+AL.WEB = AL.SENTINELS.filter(s => s.stage === 1).map(s => s.id);
+
+AL.PLAN_TEXT = {
+  saver:    {short: "cheapest · ready within about an hour", note: "Anthropic's Batch API (half price). Sentinels on Haiku 4.5, Alert Desk on Sonnet 5.5."},
+  balanced: {short: "cheap · results in minutes",            note: "Same models as Saver, answered immediately."},
+  max:      {short: "best models · results in minutes",      note: "Sentinels on Sonnet 5.5, Alert Desk on Opus 5.5."}
+};
+AL.URGENT_RULES = {
+  thesis: "High importance (4–5) or anything that hits your thesis",
+  high:   "High importance only (4–5)",
+  medium: "Medium and above (3–5)"
+};
+AL.DEFAULT_BLOCKED = ["reddit.com", "stocktwits.com", "x.com", "twitter.com", "facebook.com", "tiktok.com", "instagram.com", "discord.com", "investorshub.advfn.com", "4chan.org", "quora.com", "medium.com", "threads.net"];
+AL.DEFAULTS = {plan: "saver", searchDepth: 1, reputableOnly: false, urgentRule: "thesis", blocked: AL.DEFAULT_BLOCKED.join(", ")};
+
+const ITEM = S.obj({
+  title: S.str("Headline in your own words, max 14 words"),
+  summary: S.str("What happened, max 40 words, with the key number"),
+  url: S.str("Link to the source (required)"),
+  source: S.str("Publisher or platform, e.g. Reuters, r/stocks, StockTwits"),
+  date: S.str("Publication date YYYY-MM-DD"),
+  kind: S.str("Short type, e.g. contract, lawsuit, upgrade, price target, podcast, permit, short report"),
+  sentiment: S.enm(["positive", "negative", "neutral", "mixed"], "For the stock"),
+  importance: S.int10("How much this could matter for the stock: 1 trivia … 5 thesis-changing (use 1–5 only)"),
+  reputable: {type: "boolean", description: "false for anonymous posts, forums, unverified social media"}
+});
+for (const s of AL.SENTINELS.filter(x => x.stage === 1)) AIC.SCHEMAS["al_" + s.id] = {bare: true, score: null, extra: {
+  nothing_new: {type: "boolean", description: "true if you found nothing new in the window"},
+  items: S.arr(ITEM, "New items, most important first (max 8)", 8),
+  ...(s.id === "social" ? {buzz: S.enm(["quiet", "normal", "elevated", "spiking"], "Volume of chatter vs normal"), tone: S.enm(["bullish", "bearish", "mixed", "neutral"], "Overall tone")} : {})
+}};
+AIC.SCHEMAS.al_desk = {bare: true, score: null, extra: {
+  headline: S.str("One sentence: what changed for this stock since the last look (or 'Quiet — nothing material')"),
+  mood: S.enm(["positive", "negative", "mixed", "quiet"], "Overall"),
+  items: S.arr(S.obj({
+    ref: S.num("Number of the candidate this is about"),
+    also: S.arr(S.num(""), "Numbers of duplicate candidates about the same event", 8),
+    title: S.str("Clean headline, max 14 words"),
+    why: S.str("Why it matters for an owner of this stock, max 30 words"),
+    importance: S.num("1 trivia, 2 minor, 3 notable, 4 important, 5 thesis-changing"),
+    thesis_hit: S.str("If it bears on a thesis line or monitoring item, quote which; else empty"),
+    novelty: S.enm(["new", "update", "repeat"], "repeat = already in the 'already reported' list"),
+    sentiment: S.enm(["positive", "negative", "neutral", "mixed"], "")
+  }), "Every candidate worth keeping, most important first; leave out noise and repeats", 25)
+}};
+
+/* ---------------- free, code-only sentinels ---------------- */
+const ITEMS_8K = {"1.01": [3, "Material agreement"], "1.02": [3, "Agreement terminated"], "1.03": [5, "Bankruptcy or receivership"], "1.05": [4, "Cybersecurity incident"],
+  "2.01": [4, "Acquisition or disposal completed"], "2.02": [3, "Results announced"], "2.03": [3, "New debt obligation"], "2.04": [5, "Debt acceleration trigger"], "2.05": [4, "Restructuring / exit costs"],
+  "2.06": [4, "Material impairment"], "3.01": [5, "Delisting notice"], "3.02": [3, "Unregistered share sale"], "3.03": [3, "Shareholder rights changed"], "4.01": [4, "Auditor change"],
+  "4.02": [5, "Past financials can no longer be relied on"], "5.01": [5, "Change in control"], "5.02": [4, "Director or officer change"], "5.03": [2, "Bylaws amended"], "5.07": [2, "Shareholder vote results"],
+  "7.01": [2, "Reg FD disclosure"], "8.01": [2, "Other event"]};
+function formRule(f) {
+  const t = f.form.toUpperCase();
+  if (t === "8-K" || t === "8-K/A") {
+    const its = String(f.items || "").split(",").map(x => x.trim()).filter(x => ITEMS_8K[x]);
+    if (!its.length) return null;
+    const top = Math.max(...its.map(x => ITEMS_8K[x][0]));
+    return [top, "8-K: " + its.map(x => ITEMS_8K[x][1]).join("; "), "filing"];
+  }
+  if (/^NT 10-[KQ]/.test(t)) return [5, `${t}: late filing notice`, "red flag"];
+  if (/13D/.test(t)) return [/\/A/.test(t) ? 3 : 4, `${t}: a holder above 5% with intent to influence${/\/A/.test(t) ? " (amended)" : ""}`, "ownership"];
+  if (/13G/.test(t)) return [/\/A/.test(t) ? 2 : 3, `${t}: passive holder above 5%${/\/A/.test(t) ? " (amended)" : ""}`, "ownership"];
+  if (/^(S-1|S-3|S-3ASR|F-3)$/.test(t)) return [3, `${t}: registration for new securities (possible dilution)`, "offering"];
+  if (/^424B[1-5]/.test(t)) return [/424B[45]/.test(t) ? 4 : 3, `${t}: prospectus — an offering is happening`, "offering"];
+  if (t === "144") return [2, "Form 144: an insider plans to sell", "insider"];
+  if (/^(SC TO-T|SC 14D9|SC TO-I|425|DEFM14A|PREM14A)$/.test(t)) return [5, `${t}: tender offer or merger document`, "deal"];
+  if (/^(15-12B|15-12G|25-NSE|25)$/.test(t)) return [5, `${t}: deregistration or delisting`, "red flag"];
+  if (/^(10-K|10-Q|20-F|40-F)$/.test(t)) return [2, `${t} filed`, "report"];
+  if (/^(DEF 14A|DEFA14A|DFAN14A|PRRN14A)$/.test(t)) return [/DFAN|PRRN/.test(t) ? 4 : 1, t === "DFAN14A" ? "Dissident proxy material (proxy fight)" : `${t}: proxy statement`, "governance"];
+  return null;
+}
+AL.scanSec = async function (ticker, since, {signal} = {}) {
+  const D = AIC.data; if (!D.available()) return {status: "offline", items: [], note: "No data gateway — SEC filings skipped."};
+  const cik = await D.cikFor(ticker); if (!cik) return {status: "done", items: [], note: "Not an SEC filer (non-US or fund) — skipped."};
+  const sub = await D.submissions(cik); const all = D.recentFilings(sub).filter(f => f.date >= since);
+  const items = [];
+  for (const f of all) {
+    if (f.form === "4") continue;
+    const r = formRule(f); if (!r) continue;
+    items.push({key: "sec:" + f.acc, seat: "sec", title: r[1], summary: `${f.form} filed ${f.date}${f.desc ? " — " + f.desc : ""}`, url: D.archiveUrl(cik, f.acc, f.doc.replace(/^xsl[^/]*\//i, "")), source: "SEC EDGAR", date: f.date, kind: r[2], importance: r[0], reputable: true, sentiment: r[0] >= 5 ? "negative" : "neutral"});
+  }
+  const f4 = all.filter(f => f.form === "4");
+  if (f4.length) {
+    const docs = await D.form4s(cik, f4, 25, signal);
+    for (const d of docs) {
+      const buys = d.tx.filter(t => t.code === "P"), sells = d.tx.filter(t => t.code === "S");
+      const val = a => a.reduce((s, t) => s + t.shares * t.price, 0);
+      if (buys.length) { const v = val(buys); items.push({key: `f4:${d.filed}:${d.owner}:P`, seat: "sec", title: `Insider BUY: ${d.owner} (${d.role}) bought $${U.fmtNum(v, 0)}`, summary: `${U.fmtNum(buys.reduce((s, t) => s + t.shares, 0), 0)} shares at about $${(v / Math.max(1, buys.reduce((s, t) => s + t.shares, 0))).toFixed(2)} on ${buys[0].date}${d.plan ? " (10b5-1 plan)" : ""}.`, url: "", source: "SEC Form 4", date: d.filed, kind: "insider buy", importance: d.plan ? 3 : (v >= 100000 && d.role !== "Other" ? 4 : 3), reputable: true, sentiment: "positive"}); }
+      if (sells.length) { const v = val(sells); items.push({key: `f4:${d.filed}:${d.owner}:S`, seat: "sec", title: `Insider sale: ${d.owner} (${d.role}) sold $${U.fmtNum(v, 0)}`, summary: `${U.fmtNum(sells.reduce((s, t) => s + t.shares, 0), 0)} shares on ${sells[0].date}${d.plan ? " under a 10b5-1 plan" : ""}${isN(sells[sells.length - 1].after) ? `; still owns ${U.fmtNum(sells[sells.length - 1].after, 0)}` : ""}.`, url: "", source: "SEC Form 4", date: d.filed, kind: "insider sale", importance: !d.plan && v >= 1e6 ? 3 : 2, reputable: true, sentiment: "negative"}); }
+    }
+  }
+  const earnings = D.recentFilings(sub).filter(f => /^8-K/.test(f.form) && /2\.02/.test(f.items || "")).map(f => f.date);
+  return {status: "done", items, name: sub.name || "", earnings, note: `${all.length} filing${all.length === 1 ? "" : "s"} since ${since}`};
+};
+AL.scanTape = async function (ticker, since, ctx = {}, {signal} = {}) {
+  const D = AIC.data; if (!D.available()) return {status: "offline", items: [], note: "No data gateway — price checks skipped."};
+  const p = await D.prices(ticker, "1y", signal); const b = p.bars; if (!b || b.length < 30) return {status: "done", items: [], note: "Not enough price history."};
+  const items = [], last = b[b.length - 1], key = k => `px:${last.t}:${k}`;
+  const recent = b.filter(x => x.t > since); const win = recent.length ? recent : [last];
+  const first = b[b.length - 1 - win.length] || b[0];
+  const chg = last.c / first.c - 1;
+  const one = last.c / b[b.length - 2].c - 1;
+  const add = (k, imp, title, summary, sentiment) => items.push({key: key(k), seat: "tape", title, summary, url: `https://finance.yahoo.com/quote/${D.yahooSymbol(ticker)}`, source: "Price data", date: last.t, kind: "price", importance: imp, reputable: true, sentiment});
+  const a = Math.abs(one);
+  if (a >= 0.05) add("move", a >= 0.15 ? 5 : a >= 0.08 ? 4 : 3, `${one > 0 ? "Up" : "Down"} ${(a * 100).toFixed(1)}% on ${last.t}`, `Closed at $${last.c.toFixed(2)}${win.length > 1 ? `; ${U.pct(chg)} since ${since}` : ""}.`, one > 0 ? "positive" : "negative");
+  else if (win.length > 1 && Math.abs(chg) >= 0.1) add("drift", Math.abs(chg) >= 0.2 ? 4 : 3, `${chg > 0 ? "Up" : "Down"} ${(Math.abs(chg) * 100).toFixed(1)}% since ${since}`, `Now $${last.c.toFixed(2)}.`, chg > 0 ? "positive" : "negative");
+  const v20 = U.mean(b.slice(-21, -1).map(x => x.v));
+  if (v20 && last.v / v20 >= 2.5) add("vol", last.v / v20 >= 5 ? 4 : 3, `Unusual volume: ${(last.v / v20).toFixed(1)}× the 20-day average`, `${U.fmtNum(last.v, 0)} shares traded on ${last.t}.`, "neutral");
+  const prev = b.slice(-253, -1); const hi = Math.max(...prev.map(x => x.h)), lo = Math.min(...prev.map(x => x.l));
+  if (last.h > hi) add("hi", 3, "New 52-week high", `Traded at $${last.h.toFixed(2)}; previous high $${hi.toFixed(2)}.`, "positive");
+  if (last.l < lo) add("lo", 3, "New 52-week low", `Traded at $${last.l.toFixed(2)}; previous low $${lo.toFixed(2)}.`, "negative");
+  const below = U.num(ctx.below), above = U.num(ctx.above);
+  if (isN(below) && last.c <= below) add("below", 4, `Price at or below your $${below} level`, `Closed at $${last.c.toFixed(2)}.`, "negative");
+  if (isN(above) && last.c >= above) add("above", 4, `Price at or above your $${above} level`, `Closed at $${last.c.toFixed(2)}.`, "positive");
+  // earnings date estimate: last results 8-K + ~91 days
+  const e = (ctx.earnings || [])[0];
+  if (e) { const next = U.addDays(e, 91), days = U.daysBetween(U.today(), next);
+    if (days >= -3 && days <= 10) items.push({key: "cal:earn:" + next.slice(0, 7), seat: "tape", title: `Earnings expected around ${next}`, summary: `Based on the last results filing (${e}). Check the company's investor-relations page for the exact date.`, url: "", source: "Calendar estimate", date: U.today(), kind: "calendar", importance: 2, reputable: true, sentiment: "neutral"}); }
+  return {status: "done", items, price: last.c, note: `$${last.c.toFixed(2)} on ${last.t}`};
+};
+
+/* ---------------- prompts ---------------- */
+AL.system = sw => `You are a sentinel in a personal stock alert system. Your job is to find what is NEW about a stock — not to analyze it.
+Rules:
+- Only report items published inside the window you are given. Older background does not count.
+- Every item needs a working URL and a date. Never invent items, quotes, numbers or links. If you can't confirm something, leave it out.
+- Prefer primary sources (company releases, filings, regulators, the outlet that broke the story) over re-writes.
+- One item per event; if many outlets cover the same story, report it once and cite the best source.
+- Be specific: who, what, how much, when.${sw.reputableOnly ? "\n- Use reputable, named sources only: established news outlets, company and government sources, named analysts. Ignore anonymous forums and social media." : "\n- Social media and forums are allowed; mark them reputable=false and say when a claim is unverified."}
+- Write a short plain-English report (a few bullet points), then the JSON block. If there is nothing new, say so in one line and set nothing_new=true with an empty items list.`;
+
+const TASKS = {
+  news: c => `Search for news about ${c.who} published since ${c.since}: earnings and guidance, contracts and customer wins or losses, acquisitions, divestitures, financing, management changes, accidents, outages, lawsuits, layoffs, expansions, product launches, and industry trade-press coverage (for energy and water companies e.g. trade outlets covering oilfield services, produced water and midstream).`,
+  press: c => `Search newspapers for ${c.who} since ${c.since}: national business papers (WSJ, FT, NYT, Bloomberg, Reuters, Barron's) and LOCAL papers in the places where the company operates or is headquartered — local papers often report plant openings, closures, layoffs, permits, accidents, lawsuits and community disputes first.`,
+  analyst: c => `Search for sell-side analyst actions on ${c.who} since ${c.since}: upgrades, downgrades, initiations, price-target changes (old → new target and the firm), estimate revisions, and notable notes. Give the firm and analyst name when available.`,
+  social: c => c.reputableOnly
+    ? `Search for commentary on ${c.who} since ${c.since} from named, established sources only: Seeking Alpha articles by named authors, Morningstar, Barron's, well-known newsletters and named professional investors. Summarize the arguments and the overall tone. Note whether attention seems quiet, normal, elevated or spiking.`
+    : `Search for what people are saying online about ${c.who} since ${c.since}: Reddit (r/stocks, r/investing, r/wallstreetbets, r/SecurityAnalysis and industry subreddits), StockTwits, X/Twitter, Seeking Alpha articles and comments, Yahoo Finance conversations, YouTube, forums and blogs. Report notable posts and claims (flag unverified ones), recurring arguments, whether chatter is quiet, normal, elevated or spiking versus usual, and the overall tone.`,
+  pods: c => `Search for podcasts, interviews and conference appearances about ${c.who} since ${c.since}: episodes where the CEO, CFO or other executives appear, investor-conference presentations and fireside chats, and podcast episodes or YouTube videos that discuss the stock. Note anything management said that sounds new (guidance, tone, strategy) — quote only what the source shows.`,
+  regs: c => `Search for regulatory, legal and government items about ${c.who} since ${c.since}: permits granted, denied or restricted (state and federal agencies; for oil, gas and water companies e.g. the Texas Railroad Commission, New Mexico Oil Conservation Division, EPA, disposal-well and seismicity rules), enforcement actions, lawsuits filed or decided, court rulings, government contracts, tariffs and legislation that affect the company.`,
+  peers: c => `Search for news since ${c.since} about the CUSTOMERS, COMPETITORS and SUPPLIERS of ${c.who} that could read through to it: customers changing budgets, activity or contracts; competitors winning or losing business, pricing, deals and results; supplier problems. First identify the main customers and competitors, then search. Explain each read-through in one line.`,
+  shorts: c => `Search for items on ${c.who} since ${c.since} about short sellers and ownership: activist short reports, changes in short interest or days to cover, borrow becoming hard, large holders buying or selling (13F changes, activist stakes), index additions or deletions, and credit-rating changes or debt news.`
+};
+AL.seatTask = function (sw, ticker, seatId) {
+  const c = sw.ctx[ticker] || {}, s = AL.sentinel(seatId);
+  const who = `${c.name ? c.name + " (" + ticker + ")" : ticker}${c.terms ? " — also search for: " + c.terms : ""}`;
+  const n = AL.searchesFor(seatId, sw);
+  let t = `ALERT SENTINEL: ${s.name.toUpperCase()} — ${ticker}\nWindow: items published from ${c.since} to today (${U.today()}).\n\n` + TASKS[seatId]({who, since: c.since, reputableOnly: sw.reputableOnly});
+  t += `\n\nYou have up to ${n} web search${n === 1 ? "" : "es"}. Spend them on new information.`;
+  if ((c.seenTitles || []).length) t += `\n\nALREADY REPORTED (do not repeat unless there is a real update):\n${c.seenTitles.slice(0, 25).map(x => "- " + x).join("\n")}`;
+  return t;
+};
+AL.deskTask = function (sw, ticker, cands) {
+  const c = sw.ctx[ticker] || {};
+  const list = cands.map((x, i) => `[${i}] ${x.date || "?"} · ${AL.sentinel(x.seat)?.name || x.seat} · ${x.source || ""}${x.reputable === false ? " (unverified)" : ""} · hint ${x.importance || "?"}\n    ${x.title}${x.summary ? " — " + x.summary : ""}`).join("\n");
+  return `ALERT DESK — ${ticker}${c.name ? " · " + c.name : ""}
+You are the editor of a personal stock alert system. The sentinels found the candidates below since ${c.since}. Decide what the owner of this stock needs to know.
+- Merge duplicates (same event from several sources): keep the best source as ref, list the others in also.
+- Drop noise, rehashes of old news and anything in ALREADY REPORTED unless it is a real update (then novelty=update).
+- Score importance honestly: 5 = could change the investment case (fraud, bankruptcy, restatement, takeover, loss of a major customer, CEO exit); 4 = clearly material (big contract, guidance change, downgrade from a major bank, large insider buy, activist stake, ≥8% move); 3 = notable; 2 = minor; 1 = trivia.
+- Unverified social posts rarely deserve more than 2 unless the claim is serious and specific (then say it is unverified).
+- thesis_hit: if an item bears on one of the owner's thesis or monitoring lines below, quote that line.
+
+THESIS AND MONITORING LINES:
+${(c.thesis || []).length ? c.thesis.map(x => "- " + x).join("\n") : "(none recorded — judge importance from the facts)"}
+${c.below || c.above ? `PRICE LEVELS: below ${c.below || "–"}, above ${c.above || "–"}` : ""}
+
+ALREADY REPORTED:
+${(c.seenTitles || []).slice(0, 30).map(x => "- " + x).join("\n") || "(nothing yet)"}
+
+CANDIDATES:
+${list || "(none)"}
+
+Write two or three sentences for the owner, then the JSON block.`;
+};
+
+/* ---------------- sweeps ---------------- */
+AL.searchesFor = (seatId, sw) => { const s = AL.sentinel(seatId); return s.search ? Math.max(1, Math.round(s.search * (+sw.searchDepth || 1))) : 0; };
+AL.modelFor = (seatId, sw, st) => {
+  const max = sw.plan === "max";
+  if (seatId === "desk") return max ? (st.judgeModel || AIC.DEFAULTS.judgeModel) : (st.analystModel || AIC.DEFAULTS.analystModel);
+  return max ? (st.analystModel || AIC.DEFAULTS.analystModel) : (st.helperModel || AIC.DEFAULTS.helperModel);
+};
+const safeId = t => String(t).replace(/[^A-Za-z0-9]/g, "-");
+AL.rk = (ticker, seat) => ticker + "|" + seat;
+
+/* ctx per ticker: {since, terms, below, above, seenTitles, seenKeys, thesis, lastWeekly} · scope: "all" (on demand) or "scheduled" (cadence) */
+AL.newSweep = function ({tickers, ctx, plan, searchDepth, reputableOnly, blocked, urgentRule, scope, engine}) {
+  plan = AIC.PLANS[plan] ? plan : "saver";
+  const sw = {id: U.uid(), kind: "sweep", createdAt: Date.now(), tickers: tickers.slice(), ctx: {}, plan, engine: engine || "api", batch: !!AIC.PLANS[plan].batch, lean: true,
+    searchDepth: +searchDepth || 1, reputableOnly: !!reputableOnly, blocked: reputableOnly ? String(blocked || "").split(/[\s,]+/).map(x => x.trim().toLowerCase()).filter(Boolean) : [],
+    urgentRule: urgentRule || "thesis", scope: scope || "all", plan_text: AL.PLAN_TEXT[plan].short, seats: AL.SENTINELS.map(s => s.id), tasks: {}, reports: {}, results: {}, status: "running", extraUsage: null, appVersion: AIC.VERSION};
+  for (const t of tickers) {
+    const c = Object.assign({since: U.addDays(U.today(), -7), seenTitles: [], seenKeys: [], thesis: []}, ctx[t] || {});
+    sw.ctx[t] = c;
+    // weekly sentinels: Mondays (or if missed for 8+ days); daily ones every sweep; a manual sweep runs everything
+    const weeklyDue = scope !== "scheduled" || !c.lastWeekly || new Date().getDay() === 1 || U.daysBetween(c.lastWeekly, U.today()) >= 8;
+    sw.tasks[t] = AL.SENTINELS.filter(s => s.stage !== 1 || s.cadence === "daily" || weeklyDue).map(s => s.id);
+    for (const id of sw.tasks[t]) sw.reports[AL.rk(t, id)] = {status: "queued", text: "", data: null, sources: [], searches: [], usage: null, ms: 0};
+  }
+  return sw;
+};
+
+AL.candidates = function (sw, ticker) {
+  const out = [], seen = new Set(sw.ctx[ticker]?.seenKeys || []), have = new Set();
+  for (const id of sw.tasks[ticker] || []) {
+    if (id === "desk") continue;
+    const r = sw.reports[AL.rk(ticker, id)]; const its = (r && r.data && r.data.items) || [];
+    for (const x of its) {
+      const it = Object.assign({seat: id}, x, {importance: Math.max(1, Math.min(5, Math.round(+x.importance || 2)))});
+      it.key = it.key || AL.keyOf(it);
+      if (seen.has(it.key) || have.has(it.key)) continue;
+      have.add(it.key); out.push(it);
+    }
+  }
+  return out;
+};
+AL.keyOf = it => { if (it.url) { try { const u = new URL(it.url); return "u:" + u.hostname.replace(/^www\./, "") + u.pathname.replace(/\/$/, ""); } catch {} } return "t:" + String(it.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 80); };
+AL.isUrgent = (it, rule) => rule === "medium" ? it.importance >= 3 || !!it.thesisHit : rule === "high" ? it.importance >= 4 : it.importance >= 4 || !!it.thesisHit;
+
+/* turn the desk's edit into final items (falls back to the raw candidates if the desk failed) */
+AL.finalize = function (sw, ticker) {
+  const cands = AL.candidates(sw, ticker), d = sw.reports[AL.rk(ticker, "desk")]?.data;
+  let items = [];
+  const mk = (c, e = {}) => ({id: c.key, key: c.key, ticker, seat: c.seat, title: e.title || c.title, summary: c.summary || "", why: e.why || "", url: c.url || "", source: c.source || "", date: c.date || U.today(),
+    kind: c.kind || "", importance: Math.max(1, Math.min(5, Math.round(+e.importance || c.importance || 2))), thesisHit: e.thesis_hit || "", novelty: e.novelty || "new", sentiment: e.sentiment || c.sentiment || "neutral",
+    reputable: c.reputable !== false, also: (e.also || []).map(i => cands[i]).filter(Boolean).map(x => ({url: x.url, source: x.source})), sweepId: sw.id, foundAt: Date.now(), status: "new"});
+  if (d && Array.isArray(d.items)) {
+    const used = new Set();
+    for (const e of d.items) { const c = cands[+e.ref]; if (!c || used.has(+e.ref) || e.novelty === "repeat") continue; used.add(+e.ref); (e.also || []).forEach(i => used.add(+i)); items.push(mk(c, e)); }
+    cands.forEach((c, i) => { if (!used.has(i) && c.importance >= 4 && (c.seat === "sec" || c.seat === "tape")) items.push(mk(c)); }); // never lose a code-detected major event
+  } else items = cands.map(c => mk(c));
+  items.forEach(it => it.urgent = AL.isUrgent(it, sw.urgentRule));
+  items.sort((a, b) => (b.urgent - a.urgent) || (b.importance - a.importance) || String(b.date).localeCompare(String(a.date)));
+  const social = sw.reports[AL.rk(ticker, "social")]?.data;
+  sw.results[ticker] = {items, headline: d?.headline || (items.length ? items[0].title : "Quiet — nothing new found."), mood: d?.mood || (items.length ? "mixed" : "quiet"),
+    buzz: social?.buzz || null, tone: social?.tone || null, price: sw.ctx[ticker]?.price ?? null, name: sw.ctx[ticker]?.name || ""};
+  return sw.results[ticker];
+};
+
+AL.totalUsage = sw => { let u = null; for (const k in sw.reports) if (sw.reports[k].usage) u = U.addUsage(u, sw.reports[k].usage); return sw.extraUsage ? U.addUsage(u, sw.extraUsage) : u; };
+AL.totalCost = sw => U.costOf(AL.totalUsage(sw)) || 0;
+AL.seatStatus = function (sw, seatId) {
+  const rs = sw.tickers.filter(t => (sw.tasks[t] || []).includes(seatId)).map(t => sw.reports[AL.rk(t, seatId)]);
+  if (!rs.length) return {status: "idle", n: 0};
+  const c = st => rs.filter(r => r.status === st).length;
+  const items = rs.reduce((s, r) => s + ((r.data && r.data.items) || []).length, 0);
+  const status = c("running") ? "running" : c("waiting") ? "waiting" : c("error") ? (c("done") ? "done" : "error") : c("done") + c("skipped") === rs.length ? "done" : c("stopped") ? "stopped" : "queued";
+  return {status, n: rs.length, done: c("done") + c("skipped"), items, waiting: rs.find(r => r.status === "waiting"), usage: rs.reduce((u, r) => r.usage ? U.addUsage(u, r.usage) : u, null)};
+};
+
+/* run (or resume) a sweep. hooks: {settings, apiKey, signal, defer, onUpdate(sw, key, kind), save(sw)} */
+AL.execute = async function (sw, hooks) {
+  const st = hooks.settings, upd = hooks.onUpdate || (() => {});
+  sw.status = "running";
+  const system = AL.system(sw);
+  // stage 0: free checks, in code
+  for (const t of sw.tickers) {
+    const c = sw.ctx[t];
+    for (const id of ["sec", "tape"]) {
+      const r = sw.reports[AL.rk(t, id)]; if (!r || r.status === "done") continue;
+      r.status = "running"; const t0 = Date.now(); upd(sw, AL.rk(t, id));
+      try {
+        const out = id === "sec" ? await AL.scanSec(t, c.since, {signal: hooks.signal}) : await AL.scanTape(t, c.since, c, {signal: hooks.signal});
+        if (id === "sec") { if (out.name && !c.name) c.name = out.name.replace(/,? (Inc|Corp|Corporation|Co|Ltd|plc|LLC)\.?$/i, ""); c.earnings = out.earnings || []; }
+        if (id === "tape" && isN(out.price)) c.price = out.price;
+        Object.assign(r, {status: "done", data: {items: out.items}, text: out.note || "", ms: Date.now() - t0, offline: out.status === "offline"});
+      } catch (e) { Object.assign(r, {status: "done", data: {items: []}, text: "Check failed: " + e.message, error: null, ms: Date.now() - t0}); }
+      upd(sw, AL.rk(t, id));
+    }
+  }
+  hooks.save && await hooks.save(sw);
+  // stage 1: web sentinels — one batch (Saver) or a parallel burst for every ticker
+  const jobs = [];
+  for (const t of sw.tickers) for (const id of (sw.tasks[t] || []).filter(x => AL.WEB.includes(x))) {
+    const r = sw.reports[AL.rk(t, id)]; if (["done", "skipped"].includes(r.status)) continue;
+    if (r.status !== "waiting") Object.assign(r, {text: "", data: null, sources: [], searches: [], error: null});
+    const model = AL.modelFor(id, sw, st), n = AL.searchesFor(id, sw);
+    jobs.push({id: AL.rk(t, id), customId: safeId(t) + "_" + id, target: r,
+      o: {engine: "api", settings: st, apiKey: hooks.apiKey, model, system, blocks: [], task: AL.seatTask(sw, t, id), schemaKey: "al_" + id, maxUses: n, maxTokens: 3000, blockedDomains: sw.blocked},
+      onDone: out => Object.assign(r, {text: out.text, data: out.data || {items: []}, sources: out.sources, searches: out.searches || r.searches, usage: out.usage, status: "done", model, ms: r.t0 ? Date.now() - r.t0 : 0})});
+    r.t0 = Date.now();
+  }
+  await runAll(sw, jobs, hooks);
+  // stage 2: the Alert Desk, one per ticker (skipped when there is nothing to edit)
+  const djobs = [];
+  for (const t of sw.tickers) {
+    const r = sw.reports[AL.rk(t, "desk")]; if (!r || ["done", "skipped"].includes(r.status)) continue;
+    const cands = AL.candidates(sw, t);
+    if (!cands.length) { Object.assign(r, {status: "skipped", text: "Nothing new to edit — no cost."}); upd(sw, AL.rk(t, "desk")); continue; }
+    if (r.status !== "waiting") Object.assign(r, {text: "", data: null, error: null});
+    const model = AL.modelFor("desk", sw, st);
+    djobs.push({id: AL.rk(t, "desk"), customId: safeId(t) + "_desk", target: r,
+      o: {engine: "api", settings: st, apiKey: hooks.apiKey, model, system: "You are the Alert Desk editor of a personal stock alert system. Be precise and brief.", blocks: [], task: AL.deskTask(sw, t, cands), schemaKey: "al_desk", maxUses: 0, maxTokens: 3000},
+      onDone: out => Object.assign(r, {text: out.text, data: out.data, usage: out.usage, status: "done", model, ms: r.t0 ? Date.now() - r.t0 : 0})});
+    r.t0 = Date.now();
+  }
+  await runAll(sw, djobs, hooks);
+  for (const t of sw.tickers) AL.finalize(sw, t);
+  sw.cost = AL.totalCost(sw); sw.status = "done"; sw.completedAt = Date.now();
+  upd(sw, null); hooks.save && await hooks.save(sw);
+  return sw;
+};
+async function runAll(sw, jobs, hooks) {
+  if (!jobs.length) return;
+  // one failing sentinel must not sink the sweep: run, then mark failures and carry on
+  const wrapped = jobs.map(j => Object.assign({}, j, {onDone: out => { try { j.onDone(out); } catch (e) { j.target.status = "error"; j.target.error = e.message; } }}));
+  try { await PL.runJobs(sw, wrapped, hooks); }
+  catch (e) {
+    if (e.code === "cancelled" || e.code === "deferred" || e.code === "budget") throw e;
+    for (const j of wrapped) { if (j.target.status !== "done" && j.out && !j.error) j.onDone(j.out); }
+    for (const j of wrapped) if (j.target.status !== "done") Object.assign(j.target, {status: "done", data: {items: []}, text: "This sentinel failed: " + (j.target.error || e.message), usage: j.target.usage || null});
+  }
+  hooks.save && await hooks.save(sw);
+}
+
+/* what the sweep learned, to carry into the next one */
+AL.nextContext = function (prev, sw, ticker) {
+  const c = Object.assign({}, prev || {}), res = sw.results[ticker] || {items: []};
+  const keys = AL.candidates(sw, ticker).map(x => x.key).concat(res.items.map(x => x.key));
+  c.seenKeys = [...new Set(keys.concat(c.seenKeys || []))].slice(0, 400);
+  c.seenTitles = res.items.map(x => `${x.date} ${x.title}`).concat(c.seenTitles || []).slice(0, 60);
+  c.since = U.today(); c.lastSweep = sw.createdAt;
+  if ((sw.tasks[ticker] || []).some(id => AL.sentinel(id)?.cadence === "weekly")) c.lastWeekly = U.today();
+  if (sw.ctx[ticker]?.name) c.name = sw.ctx[ticker].name;
+  return c;
+};
+AL.thesisLines = function (run, th) {
+  const out = [];
+  if (th) { (th.kill || []).forEach(k => out.push("Would prove us wrong: " + k.criterion)); (th.monitoring || []).forEach(m => out.push("Monitor: " + (m.item || m))); (th.catalysts || []).filter(x => !x.done).forEach(x => out.push("Catalyst: " + x.event + (x.date ? " (" + x.date + ")" : ""))); if (th.thesis) out.unshift("Thesis: " + th.thesis); }
+  else if (run && run.cio) { const c = run.cio; if (c.thesis) out.push("Thesis: " + c.thesis); (c.falsification || []).forEach(k => out.push("Would prove us wrong: " + k)); (c.monitoring || []).forEach(m => out.push("Monitor: " + (m.item || m))); if (c.catalyst?.event) out.push("Catalyst: " + c.catalyst.event); }
+  return out.slice(0, 14);
+};
+
+/* estimate: per sweep (everything) and per month for the weekday morning digest */
+AL.estimate = function ({n, plan, searchDepth}) {
+  n = Math.max(0, n || 0); plan = AIC.PLANS[plan] ? plan : "saver"; const d = +searchDepth || 1;
+  const half = AIC.PLANS[plan].batch ? 0.5 : 1, mult = plan === "max" ? 2 : 1; // Haiku vs Sonnet sentinels
+  const seat = id => { const s = Math.max(1, Math.round(AL.sentinel(id).search * d)); return (0.01 + 0.006 * s) * mult * half + 0.01 * s; };
+  const desk = (plan === "max" ? 0.05 : 0.025) * half;
+  const daily = AL.WEB.filter(id => AL.sentinel(id).cadence === "daily").reduce((a, id) => a + seat(id), 0) + desk;
+  const weekly = AL.WEB.filter(id => AL.sentinel(id).cadence === "weekly").reduce((a, id) => a + seat(id), 0);
+  return {sweep: n * (daily + weekly), month: n * (daily * 21.7 + weekly * 4.35), minutes: AIC.PLANS[plan].batch ? "usually 15–60 min" : "about 2–5 min"};
+};
+
+/* plain-text digest (GitHub issue / markdown) */
+AL.digestMarkdown = function (results, {title, date} = {}) {
+  const imp = n => "●".repeat(n) + "○".repeat(5 - n);
+  let md = `## ${title || "Morning digest"} — ${date || U.today()}\n\n`;
+  const ts = Object.keys(results).sort((a, b) => (results[b].items[0]?.importance || 0) - (results[a].items[0]?.importance || 0));
+  const urgent = ts.flatMap(t => results[t].items.filter(i => i.urgent).map(i => ({t, i})));
+  if (urgent.length) md += `### 🚨 Needs attention\n${urgent.map(({t, i}) => `- **${t}** ${i.title}${i.thesisHit ? ` — _thesis: ${i.thesisHit}_` : ""}${i.url ? ` ([source](${i.url}))` : ""}`).join("\n")}\n\n`;
+  for (const t of ts) {
+    const r = results[t];
+    md += `### ${t}${r.name ? " · " + r.name : ""}${isN(r.price) ? ` · $${(+r.price).toFixed(2)}` : ""}\n${r.headline}${r.buzz ? ` _(chatter: ${r.buzz}${r.tone ? ", " + r.tone : ""})_` : ""}\n\n`;
+    md += r.items.length ? r.items.slice(0, 12).map(i => `- ${imp(i.importance)} ${i.title}${i.why ? " — " + i.why : ""}${i.reputable ? "" : " _(unverified)_"}${i.url ? ` ([${i.source || "source"}](${i.url}))` : i.source ? ` (${i.source})` : ""}`).join("\n") + "\n\n" : "_Nothing new._\n\n";
+  }
+  return md;
 };
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
@@ -3019,6 +3482,7 @@ function loadState() {
   if (!LS.get("settings", {}).judgeModel && LS.get("settings", {}).model) S.settings.judgeModel = LS.get("settings", {}).model; // carry over a v6.0 model choice
   S.mode = LS.get("mode", S.settings.defaultMode || "standard");
   S.plan = LS.get("plan", S.settings.plan || "saver"); if (!A.PLANS[S.plan]) S.plan = "saver";
+  alLoad(); S.app = LS.get("app", "committee") === "alerts" ? "alerts" : "committee"; if (S.app === "alerts") S.view = "alfeed";
   S.key = LS.get("key", "") || (() => { try { return sessionStorage.getItem("aic6.key") || ""; } catch { return ""; } })();
   applyEnv();
 }
@@ -3036,7 +3500,7 @@ const persist = {
 /* ---------- cost bookkeeping (no extra toggles: plan, monthly budget, per-run cap) ---------- */
 const Cost = {
   month: () => new Date().toISOString().slice(0, 7),
-  spentThisMonth() { const m = Cost.month(); return S.index.filter(h => U.isNum(h.cost) && new Date(h.createdAt).toISOString().slice(0, 7) === m).reduce((a, h) => a + h.cost, 0) + (LS.get("extraSpend", {})[m] || 0); },
+  spentThisMonth() { const m = Cost.month(); return ALS.index.filter(h => U.isNum(h.cost) && new Date(h.createdAt).toISOString().slice(0, 7) === m).reduce((a, h) => a + h.cost, 0) + S.index.filter(h => U.isNum(h.cost) && new Date(h.createdAt).toISOString().slice(0, 7) === m).reduce((a, h) => a + h.cost, 0) + (LS.get("extraSpend", {})[m] || 0); },
   addExtra(usage) { if (!usage || !U.isNum(usage.cost)) return; const m = Cost.month(), x = LS.get("extraSpend", {}); x[m] = (x[m] || 0) + usage.cost; LS.set("extraSpend", x); },
   learn(run) { // remember what each seat really cost on each plan, so estimates get better over time
     if (run.status !== "done" || !run.plan || run.engine !== "api") return;
@@ -3819,7 +4283,7 @@ async function runLab() {
 /* ---------------- Settings ---------------- */
 function renderSettings() {
   const st = S.settings, p = S.profile;
-  const tabs = [["profile", "Profile"], ["engine", "Cost & models"], ["data", "Data"], ["seats", "Seats"], ["github", "GitHub"], ["storage", "Appearance & storage"]];
+  const tabs = [["profile", "Profile"], ["engine", "Cost & models"], ["alerts", "Alerts"], ["data", "Data"], ["seats", "Seats"], ["github", "GitHub"], ["storage", "Appearance & storage"]];
   const sel = (id, opts, val) => `<select class="field" id="${id}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(val) === String(v) ? "selected" : ""}>${esc(l)}</option>`; }).join("")}</select>`;
   const f = (id, label, ctl, wide) => `<div class="f ${wide ? "wide" : ""}"><label class="lbl" for="${id}">${label}</label>${ctl}</div>`;
   const inp = (id, val, ph, type) => `<input class="field" id="${id}" value="${esc(val ?? "")}" placeholder="${esc(ph || "")}" ${type ? `type="${type}"` : ""} spellcheck="false">`;
@@ -3857,6 +4321,12 @@ function renderSettings() {
     ${f("sTG", "Terminal growth %", inp("sTG", st.terminalGrowth))}
     </div></details>
     <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button></div></form>`; }
+  if (S.setTab === "alerts") { const a = ALS.settings;
+    body = `<form class="card" id="alSetForm"><p class="small">Settings for the <b>AI Stock Alert System</b>. Plan, web-search depth and sources are chosen on the Feed screen; the tickers on the Alert list.</p><div class="pgrid">
+    ${f("alRule", "Send an urgent email for", sel("alRule", Object.entries(AL.URGENT_RULES), a.urgentRule), true)}
+    ${f("alBlocked", "Sites left out when you choose “Reputable only”", `<textarea class="field" id="alBlocked" rows="3">${esc(a.blocked)}</textarea>`, true)}
+    </div><p class="small muted">The morning digest arrives at 6:30 am Central on weekdays through the GitHub schedule (see Alert list). Weekly sentinels — podcasts, regulators, customers & rivals, shorts & ownership — run in Monday's digest; daily ones every weekday. A manual sweep always runs all of them.</p>
+    <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button><button class="btn" type="button" id="alBlockReset">Reset the list</button></div></form>`; }
   if (S.setTab === "data") body = `<form class="card" id="dataForm"><p class="small">The <b>data gateway</b> is a tiny Cloudflare Worker (in the repo's <code>worker/</code> folder) that fetches SEC EDGAR and price data for the browser, which those sites block directly. It can also hold your Anthropic key so the key never sits in the browser.</p>
     ${S.inClaude ? `<p class="warnline">Inside claude.ai the page can't reach a gateway. These settings apply to the standalone version.</p>` : ""}
     <div class="pgrid">${f("gUrl", "Gateway URL", inp("gUrl", st.gateway, "https://aic-gateway.yourname.workers.dev"), true)}
@@ -4026,6 +4496,289 @@ async function syncGitHub() {
   } catch (e) { toast("Couldn't read results/index.json from GitHub: " + e.message, 6000); }
 }
 
+/* ---- src/ui/60-alerts.js ---- */
+/* AI Stock Alert System — screens: Feed (sweep + ranked alerts), Alert list, Sweeps. */
+const AL = A.alerts;
+const ALS = { // alert-system state (its own ticker list, settings, feed and memory)
+  list: [], settings: Object.assign({}, AL.DEFAULTS), feed: [], ctx: {}, index: [], latest: null,
+  sweep: null, running: false, ctl: null, filter: {imp: "all", ticker: "", showDismissed: false}, sel: "all", open: null
+};
+function alLoad() {
+  ALS.list = LS.get("al.list", []); ALS.settings = Object.assign({}, AL.DEFAULTS, LS.get("al.settings", {}));
+  ALS.feed = LS.get("al.feed", []); ALS.ctx = LS.get("al.ctx", {}); ALS.index = LS.get("al.index", []); ALS.latest = LS.get("al.latest", null);
+}
+const alPersist = {
+  list: () => LS.set("al.list", ALS.list), settings: () => LS.set("al.settings", ALS.settings), feed: () => LS.set("al.feed", ALS.feed.slice(0, 800)),
+  ctx: () => LS.set("al.ctx", ALS.ctx), index: () => LS.set("al.index", ALS.index.slice(0, 120)), latest: () => LS.set("al.latest", ALS.latest)
+};
+const alOn = () => ALS.list.filter(w => w.ticker && w.on !== false);
+const alUnseen = () => ALS.feed.filter(i => i.status === "new");
+async function alSave(sw) {
+  sw.cost = AL.totalCost(sw); await DB.putRun(sw);
+  const s = {id: sw.id, createdAt: sw.createdAt, tickers: sw.tickers, scope: sw.scope, plan: sw.plan, status: sw.status, cost: sw.cost,
+    items: Object.values(sw.results || {}).reduce((a, r) => a + r.items.length, 0), urgent: Object.values(sw.results || {}).reduce((a, r) => a + r.items.filter(i => i.urgent).length, 0)};
+  const i = ALS.index.findIndex(x => x.id === sw.id); if (i >= 0) ALS.index[i] = s; else ALS.index.unshift(s); alPersist.index();
+}
+
+/* ---------- running a sweep ---------- */
+async function alCtxFor(w) {
+  const t = U.normTicker(w.ticker), th = S.theses.find(x => x.ticker === t);
+  let run = null; const h = S.index.find(x => x.ticker === t && x.status === "done" && x.verdict); if (!th && h) run = await DB.getRun(h.id);
+  return Object.assign({since: U.addDays(U.today(), -7)}, ALS.ctx[t] || {}, {terms: w.terms || "", below: w.below || "", above: w.above || "", thesis: AL.thesisLines(run, th)});
+}
+async function alSweep(tickers) {
+  if (ALS.running || S.running) { toast("Wait for the current run to finish."); return; }
+  if (!tickers.length) { toast("Add tickers on the Alert list first."); go("allist"); return; }
+  if (!canRunEngine()) return;
+  const est = AL.estimate({n: tickers.length, plan: ALS.settings.plan, searchDepth: ALS.settings.searchDepth});
+  const left = Cost.budgetLeft(); if (left != null && est.sweep > left) { toast(`That sweep (≈ $${est.sweep.toFixed(2)}) would go over your monthly budget. Raise it in Settings → Cost & models.`, 8000); return; }
+  const ctx = {}; for (const t of tickers) ctx[t] = await alCtxFor(ALS.list.find(w => U.normTicker(w.ticker) === t) || {ticker: t});
+  const st = ALS.settings;
+  const sw = AL.newSweep({tickers, ctx, plan: st.plan, searchDepth: st.searchDepth, reputableOnly: st.reputableOnly, blocked: st.blocked, urgentRule: st.urgentRule, scope: "all", engine: S.engine});
+  await alSave(sw);
+  return alExecute(sw);
+}
+async function alExecute(sw) {
+  ALS.sweep = sw; ALS.running = true; ALS.ctl = new AbortController(); const t0 = Date.now(); ALS.t0 = t0;
+  renderAlFeed();
+  let tm = 0; const tick = () => { if (!tm) tm = setTimeout(() => { tm = 0; if (S.view === "alfeed") { renderAlBoard(); renderAlProgress(); } }, 200); };
+  const timer = setInterval(() => { if (S.view === "alfeed") renderAlProgress(); }, 1000);
+  try {
+    await AL.execute(sw, {settings: S.settings, apiKey: S.key, signal: ALS.ctl.signal, save: alSave, onUpdate: tick});
+    for (const t of sw.tickers) ALS.ctx[t] = AL.nextContext(ALS.ctx[t], sw, t);
+    alPersist.ctx(); alMerge(sw.tickers.flatMap(t => sw.results[t].items));
+    ALS.latest = {date: U.today(), at: Date.now(), sweepId: sw.id, cost: sw.cost, results: sw.results}; alPersist.latest();
+    const n = sw.tickers.reduce((a, t) => a + sw.results[t].items.length, 0), u = sw.tickers.reduce((a, t) => a + sw.results[t].items.filter(i => i.urgent).length, 0);
+    toast(`Sweep done: ${n} new item${n === 1 ? "" : "s"}${u ? `, ${u} urgent` : ""} · $${(sw.cost || 0).toFixed(2)}`, 6000);
+    if (document.hidden) document.title = `✓ ${n} alerts${u ? " · " + u + " urgent" : ""}`;
+  } catch (e) {
+    sw.status = e.code === "cancelled" ? "stopped" : e.code === "budget" ? "budget" : "error"; sw.error = e.message;
+    if (e.code !== "cancelled") toast(e.message, 7000);
+  } finally {
+    clearInterval(timer); ALS.running = false; ALS.ctl = null; await alSave(sw); updateNav();
+    if (S.view === "alfeed") renderAlFeed(); else if (S.view === "alhist") renderAlHist();
+  }
+  return sw;
+}
+function alMerge(items) {
+  const have = new Set(ALS.feed.map(i => i.ticker + "|" + i.id));
+  ALS.feed = items.filter(i => !have.has(i.ticker + "|" + i.id)).concat(ALS.feed).slice(0, 800);
+  alPersist.feed(); updateNav();
+}
+
+/* ---------- Feed ---------- */
+function renderAlFeed() {
+  if (S.inClaude || S.engine === "claude") {
+    $("#alTop").innerHTML = ""; $("#alBoardSec").hidden = true; $("#alDigest").innerHTML = "";
+    $("#alFeed").innerHTML = `<div class="card"><h3 class="h3">The Stock Alert System runs in the GitHub version</h3><p>It needs live web search and SEC data, which pages inside claude.ai can't reach. Open your GitHub Pages app to sweep tickers and get the 6:30 am digest.</p></div>`;
+    return;
+  }
+  renderAlTop(); renderAlBoard(); renderAlProgress(); renderAlDigest(); renderAlItems();
+}
+function renderAlTop() {
+  const on = alOn(), st = ALS.settings, run = ALS.running;
+  const est = AL.estimate({n: ALS.sel === "all" ? on.length : 1, plan: st.plan, searchDepth: st.searchDepth});
+  const estAll = AL.estimate({n: on.length, plan: st.plan, searchDepth: st.searchDepth});
+  const dep = +st.searchDepth;
+  $("#alTop").innerHTML = `<div class="lbl">Sweep the web for news about your stocks</div>
+    <div class="row">
+      <select class="field" id="alSel" aria-label="Which tickers" ${run ? "disabled" : ""}><option value="all">All on the alert list (${on.length})</option>${on.map(w => `<option value="${esc(U.normTicker(w.ticker))}" ${ALS.sel === U.normTicker(w.ticker) ? "selected" : ""}>${esc(U.normTicker(w.ticker))}</option>`).join("")}</select>
+      <button class="btn primary" id="alGo" type="button" ${run || !on.length ? "disabled" : ""}>▶ Sweep now</button>
+      ${run ? `<button class="btn stop" id="alStop" type="button">■ Stop</button>` : ""}
+      ${on.length ? "" : `<button class="btn" type="button" data-view-go="allist">＋ Add tickers</button>`}
+    </div>
+    <div class="plans" role="radiogroup" aria-label="Cost plan">${Object.entries(A.PLANS).map(([k, p]) => `<button type="button" role="radio" class="plan-opt" data-alplan="${k}" aria-checked="${st.plan === k}" ${run ? "disabled" : ""}><b>${esc(p.label)}</b><span>${esc(AL.PLAN_TEXT[k].short)}</span></button>`).join("")}</div>
+    <div class="depths"><span class="lbl">Web search</span>${[["0.5", "Light"], ["1", "Standard"], ["1.5", "Deep"]].map(([v, l]) => `<button type="button" role="radio" class="depth-opt" data-aldepth="${v}" aria-checked="${dep === +v}" ${run ? "disabled" : ""}>${l}</button>`).join("")}
+      <span class="sep"></span><span class="lbl">Sources</span><button type="button" role="radio" class="depth-opt" data-alsrc="all" aria-checked="${!st.reputableOnly}" ${run ? "disabled" : ""} title="News, papers, analysts, podcasts plus Reddit, StockTwits, X, forums and blogs">All, incl. social</button><button type="button" role="radio" class="depth-opt" data-alsrc="rep" aria-checked="${!!st.reputableOnly}" ${run ? "disabled" : ""} title="Drops Reddit, StockTwits, X, forums and anonymous blogs">Reputable only</button></div>
+    <div class="hint est">This sweep ≈ <b class="num">$${est.sweep.toFixed(2)}</b> · ${esc(est.minutes)} · the weekday 6:30 am digest for ${on.length} ticker${on.length === 1 ? "" : "s"} ≈ <b class="num">$${estAll.month.toFixed(0)}/month</b> on this plan · spent this month <b class="num">$${Cost.spentThisMonth().toFixed(2)}</b></div>
+    <div class="progress" id="alProg" hidden><span id="alProgStep" class="num"></span><div class="bar"><i id="alProgBar" style="width:0%"></i></div><span id="alProgMeta" class="num"></span></div>`;
+}
+function renderAlBoard() {
+  const sw = ALS.sweep, box = $("#alBoard"); $("#alBoardSec").hidden = false;
+  const stages = [[0, "Free", "computed in code"], [1, "Web sentinels", ""], [2, "Editor", ""]];
+  box.innerHTML = stages.map(([n, l, sub]) => `<div class="stage"><div class="stage-l"><span class="num">${n}</span>${l}${sub ? `<small>${sub}</small>` : ""}</div><div class="stage-seats">${
+    AL.SENTINELS.filter(s => s.stage === n).map(s => {
+      let state = s.free ? "free" : s.cadence ? (s.cadence === "daily" ? "daily" : "weekly") + " in the digest" : "";
+      let dst = "idle";
+      if (sw && (sw.status === "running" || ALS.sweep === sw)) {
+        const x = AL.seatStatus(sw, s.id); dst = x.status;
+        if (x.status === "running") state = `working · ${x.done}/${x.n}`;
+        else if (x.status === "waiting") state = `⧗ queued at Anthropic · ${waitMins(x.waiting)}m`;
+        else if (x.status === "done") state = `✓ ${x.items} item${x.items === 1 ? "" : "s"}${x.usage && U.isNum(x.usage.cost) ? " · $" + x.usage.cost.toFixed(2) : ""}`;
+        else if (x.status === "idle") { state = "not due"; dst = "skipped"; }
+        else if (x.status !== "queued") state = x.status;
+      }
+      return `<div class="seat" data-st="${dst}" style="--c:${s.color}"><span class="glyph">${s.code}</span><span class="name">${esc(s.name)}</span><span class="blurb">${esc(s.blurb)}</span>${state ? `<span class="state">${esc(state)}</span>` : ""}</div>`;
+    }).join("")}</div></div>`).join("");
+}
+function renderAlProgress() {
+  const p = $("#alProg"), sw = ALS.sweep; if (!p) return;
+  if (!sw || (!ALS.running && sw.status === "done" && Date.now() - (sw.completedAt || 0) > 600000)) { p.hidden = true; return; }
+  p.hidden = false;
+  const keys = Object.keys(sw.reports), done = keys.filter(k => ["done", "skipped"].includes(sw.reports[k].status)).length;
+  const waiting = keys.filter(k => sw.reports[k].status === "waiting");
+  $("#alProgBar").style.width = (done / Math.max(1, keys.length) * 100) + "%";
+  $("#alProgStep").textContent = ALS.running ? (waiting.length ? `WAITING FOR ANTHROPIC'S BATCH · ${waiting.length} CHECKS · ${waitMins(sw.reports[waiting[0]])} MIN` : `SWEEPING ${sw.tickers.join(" · ")} · ${done}/${keys.length}`) : `${done}/${keys.length} CHECKS · ${sw.status.toUpperCase()}`;
+  const u = AL.totalUsage(sw);
+  $("#alProgMeta").textContent = `${u ? u.searches + " searches · " : ""}$${AL.totalCost(sw).toFixed(2)} · ${A.PLANS[sw.plan]?.label || ""}${ALS.running ? " · " + secs(Date.now() - (ALS.t0 || sw.createdAt)) : ""}`;
+}
+const moodColor = m => m === "positive" ? "var(--good)" : m === "negative" ? "var(--bad)" : m === "mixed" ? "var(--warn)" : "var(--muted)";
+function renderAlDigest() {
+  const L = ALS.latest, box = $("#alDigest");
+  if (!L || !L.results) { box.innerHTML = ""; return; }
+  const ts = Object.keys(L.results);
+  box.innerHTML = `<div class="card aldigest"><div class="sechead"><h3 class="h3">Latest sweep · ${esc(new Date(L.at).toLocaleString([], {weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}</h3><span class="muted small">${ts.length} ticker${ts.length === 1 ? "" : "s"}${U.isNum(L.cost) ? " · $" + L.cost.toFixed(2) : ""}</span></div>
+    <div class="dg">${ts.map(t => { const r = L.results[t]; const u = r.items.filter(i => i.urgent).length;
+      return `<button type="button" class="dgrow" data-alfilter="${esc(t)}" style="--m:${moodColor(r.mood)}"><span class="tk">${esc(t)}</span><span class="hl">${esc(r.headline)}</span><span class="meta">${u ? `<span class="urg">${u} urgent</span>` : ""}${r.items.length} item${r.items.length === 1 ? "" : "s"}${r.buzz ? ` · chatter ${esc(r.buzz)}` : ""}</span></button>`; }).join("")}</div></div>`;
+}
+function renderAlItems() {
+  const f = ALS.filter, box = $("#alFeed");
+  let items = ALS.feed.filter(i => (f.showDismissed || i.status !== "dismissed") && (!f.ticker || i.ticker === f.ticker)
+    && (f.imp === "all" || (f.imp === "urgent" ? i.urgent : i.importance >= 3)));
+  const tickers = [...new Set(ALS.feed.map(i => i.ticker))].sort();
+  const unseen = alUnseen().length;
+  let h = `<div class="sechead alhead"><span class="lbl">Alerts${unseen ? ` <span class="cnt">${unseen} new</span>` : ""}</span>
+    <div class="seg" role="radiogroup" aria-label="Importance">${[["urgent", "Urgent"], ["notable", "Notable +"], ["all", "Everything"]].map(([k, l]) => `<button type="button" role="radio" data-alimp="${k}" aria-checked="${f.imp === k}">${l}</button>`).join("")}</div>
+    <select class="field small" id="alTick" aria-label="Ticker"><option value="">All tickers</option>${tickers.map(t => `<option ${f.ticker === t ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>
+    <button class="btn small" type="button" id="alSeenAll" ${unseen ? "" : "disabled"}>✓ Mark all seen</button>
+    <button class="btn small" type="button" id="alSync" title="Read the morning digest results from your GitHub repo">⟳ Sync from GitHub</button></div>`;
+  if (!ALS.feed.length) { box.innerHTML = h + `<div class="emptybox">No alerts yet. ${alOn().length ? "Press <b>Sweep now</b>, or set up the 6:30 am digest on GitHub (see the Alert list)." : "Start by adding tickers to the <button class='linkbtn' type='button' data-view-go='allist'>Alert list</button>."}</div>`; return; }
+  if (!items.length) { box.innerHTML = h + `<div class="emptybox">Nothing matches this filter.</div>`; return; }
+  const day = i => String(i.date || "").slice(0, 10) || new Date(i.foundAt).toISOString().slice(0, 10);
+  const groups = {}; items.slice(0, 300).forEach(i => (groups[day(i)] = groups[day(i)] || []).push(i));
+  const label = d => d === U.today() ? "Today" : d === U.addDays(U.today(), -1) ? "Yesterday" : new Date(d + "T12:00").toLocaleDateString([], {weekday: "short", month: "short", day: "numeric", year: d.slice(0, 4) === U.today().slice(0, 4) ? undefined : "numeric"});
+  h += Object.keys(groups).sort().reverse().map(d => `<div class="alday"><div class="alday-l">${esc(label(d))}</div>${groups[d].sort((a, b) => (b.urgent - a.urgent) || (b.importance - a.importance)).map(alItemHtml).join("")}</div>`).join("");
+  box.innerHTML = h;
+}
+function alItemHtml(i) {
+  const s = AL.sentinel(i.seat) || {code: "?", name: i.seat, color: "var(--fg-2)"};
+  let host = ""; try { host = i.url ? new URL(i.url).hostname.replace(/^www\./, "") : ""; } catch {}
+  return `<article class="alitem imp-${i.importance} ${i.status === "new" ? "unseen" : ""} ${i.status === "dismissed" ? "dismissed" : ""}" data-alid="${esc(i.ticker + "|" + i.id)}" style="--c:${s.color}">
+    <div class="imp" title="Importance ${i.importance} of 5"><b>${i.importance}</b><span>${"●".repeat(i.importance)}${"○".repeat(5 - i.importance)}</span></div>
+    <div class="albody">
+      <div class="top"><span class="tk">${esc(i.ticker)}</span><span class="glyph" style="--c:${s.color}">${esc(s.code)}</span><span class="cat">${esc(s.name)}${i.kind ? " · " + esc(i.kind) : ""}</span>
+        ${i.urgent ? `<span class="badge urg">Urgent</span>` : ""}${i.novelty === "update" ? `<span class="badge">Update</span>` : ""}${i.reputable ? "" : `<span class="badge unv">Unverified</span>`}
+        <span class="sent" style="color:${dirColor(i.sentiment)}">${dirMark(i.sentiment)}</span></div>
+      <h4>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener noreferrer">${esc(i.title)}</a>` : esc(i.title)}</h4>
+      ${i.summary ? `<p class="sum">${esc(i.summary)}</p>` : ""}
+      ${i.why ? `<p class="why"><b>Why it matters</b> ${esc(i.why)}</p>` : ""}
+      ${i.thesisHit ? `<p class="thit">⚑ Thesis: ${esc(i.thesisHit)}</p>` : ""}
+      <div class="src">${esc(i.source || host || "")}${host && i.source && !i.source.includes(host) ? ` · ${esc(host)}` : ""}${(i.also || []).length ? ` · also ${i.also.slice(0, 3).map(a => a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.source || "source")}</a>` : esc(a.source || "")).join(", ")}` : ""}</div>
+    </div>
+    <div class="acts">${i.status === "new" ? `<button class="btn small" type="button" data-alact="seen" title="Mark seen">✓</button>` : ""}<button class="btn small" type="button" data-alact="${i.status === "dismissed" ? "restore" : "dismiss"}">${i.status === "dismissed" ? "Restore" : "Dismiss"}</button><button class="btn small" type="button" data-alact="committee" title="Open the Investment Committee on this ticker">Committee →</button></div>
+  </article>`;
+}
+
+/* ---------- Alert list ---------- */
+function renderAlList() {
+  const L = ALS.list;
+  $("#viewAllist").innerHTML = `<main class="wrap"><div class="sechead"><span class="lbl">Alert list — the stocks the Alert System watches</span></div>
+  <div class="card"><div class="tblwrap"><table class="dt allist"><thead><tr><th>On</th><th>Ticker</th><th>Also search for <span class="muted small">(names, products, people)</span></th><th>Alert if price ≤</th><th>Alert if price ≥</th><th>Last checked</th><th></th></tr></thead><tbody>
+    ${L.map((w, i) => { const c = ALS.ctx[U.normTicker(w.ticker)]; return `<tr data-ali="${i}"><td><input type="checkbox" data-alf="on" ${w.on !== false ? "checked" : ""} aria-label="Watch ${esc(w.ticker)}"></td><td><b>${esc(w.ticker)}</b>${c?.name ? `<div class="muted small">${esc(c.name)}</div>` : ""}</td>
+      <td><input class="field small" data-alf="terms" value="${esc(w.terms || "")}" placeholder="e.g. Select Water, John Schmitz"></td><td><input class="field small num" data-alf="below" value="${esc(w.below || "")}" inputmode="decimal" placeholder="–"></td><td><input class="field small num" data-alf="above" value="${esc(w.above || "")}" inputmode="decimal" placeholder="–"></td>
+      <td class="small muted">${c?.lastSweep ? esc(fmtDate(c.lastSweep)) : "never"}</td><td><button class="del" type="button" data-aldel="${i}" aria-label="Remove ${esc(w.ticker)}">×</button></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">No tickers yet.</td></tr>`}
+  </tbody></table></div>
+  <div class="jrow"><input class="field" id="alNew" placeholder="Add tickers, e.g. WTTR, AESI" aria-label="Add tickers"><button class="btn primary small" type="button" id="alAdd">＋ Add</button>
+    ${S.watchlist.length || S.holdings.length ? `<button class="btn small" type="button" id="alCopy">Copy from Committee watchlist & holdings</button>` : ""}
+    <button class="btn small" type="button" id="alSaveList">✓ Save</button></div></div>
+  <div class="card"><h3 class="h3">Morning digest by email (6:30 am Central, weekdays)</h3>
+    <ol class="steps"><li>Press <button class="btn small" type="button" id="alExport">⇩ alerts.json</button> and add the file to the top folder of your GitHub repository (the same place as watchlist.json).</li>
+      <li>That's it, if the Committee schedule is already set up (the <code>ANTHROPIC_API_KEY</code> secret and <code>SEC_USER_AGENT</code> variable). The <b>Committee queue</b> workflow starts the sweep at 4:30 am so Saver's half-price batch is done by 6:30, then opens a <b>☀ Morning digest</b> issue — GitHub emails it to you. Urgent items get their own <b>🚨</b> email, and during market hours free checks of filings and prices run every 30 minutes.</li>
+      <li>Here, press <b>Sync from GitHub</b> on the Feed to see those results in the app.</li></ol>
+    <p class="small muted">The file carries your plan (${esc(A.PLANS[ALS.settings.plan]?.label || "")}), search depth, sources choice and urgent rule. Export it again after you change them.</p></div></main>`;
+}
+function alReadList() { $$("[data-ali]").forEach(tr => { const w = ALS.list[+tr.dataset.ali]; if (!w) return; tr.querySelectorAll("[data-alf]").forEach(inp => { w[inp.dataset.alf] = inp.type === "checkbox" ? inp.checked : inp.value.trim(); }); }); }
+function alExport() {
+  alReadList(); alPersist.list();
+  const st = ALS.settings;
+  saveFile("alerts.json", JSON.stringify({app: "ai-stock-alert-system", version: A.VERSION, generated: new Date().toISOString(),
+    settings: {plan: st.plan, searchDepth: +st.searchDepth, reputableOnly: !!st.reputableOnly, urgentRule: st.urgentRule, blocked: st.blocked},
+    tickers: ALS.list.map(w => ({ticker: U.normTicker(w.ticker), on: w.on !== false, terms: w.terms || "", below: w.below || "", above: w.above || ""}))}, null, 2), "application/json");
+}
+async function alSync() {
+  const {ghOwner: o, ghRepo: r, ghBranch: b} = S.settings; if (!o || !r) { toast("Set your GitHub owner and repository in Settings → GitHub first."); return; }
+  const base = `https://raw.githubusercontent.com/${encodeURIComponent(o)}/${encodeURIComponent(r)}/${encodeURIComponent(b || "main")}/results/alerts/`;
+  try {
+    const feed = await (await fetch(base + "feed.json", {cache: "no-store"})).json();
+    const before = ALS.feed.length; alMerge(feed.items || []);
+    try { const L = await (await fetch(base + "latest.json", {cache: "no-store"})).json(); if (L && (!ALS.latest || L.at > ALS.latest.at)) { ALS.latest = L; alPersist.latest(); } } catch {}
+    toast(`Synced ${ALS.feed.length - before} new alert${ALS.feed.length - before === 1 ? "" : "s"} from GitHub.`); renderAlFeed();
+  } catch (e) { toast("No alert results on GitHub yet (results/alerts/feed.json). They appear after the first morning sweep.", 6000); }
+}
+
+/* ---------- Sweeps (history) ---------- */
+async function renderAlHist() {
+  const I = ALS.index;
+  let h = `<main class="wrap"><div class="sechead"><span class="lbl">Sweeps run in this browser</span></div>`;
+  if (!I.length) h += `<div class="emptybox">No sweeps yet.</div>`;
+  else h += `<div class="hist">${I.map(x => `<div class="hrow" role="button" tabindex="0" data-alopen="${x.id}"><span class="t">${esc(x.tickers.slice(0, 4).join(" · "))}${x.tickers.length > 4 ? " +" + (x.tickers.length - 4) : ""}</span><span class="d num">${esc(fmtDate(x.createdAt))}</span>
+    <span class="chip" style="color:${x.status === "done" ? "var(--good)" : x.status === "running" ? "var(--accent)" : "var(--bad)"}">${esc(x.status)}</span><span class="small">${x.items} items${x.urgent ? ` · <b style="color:var(--bad)">${x.urgent} urgent</b>` : ""}</span>
+    <span class="tag">${esc(A.PLANS[x.plan]?.label || x.plan)}</span><span class="go"><span class="muted small num">$${(x.cost || 0).toFixed(2)}</span><button class="del" type="button" data-aldelsw="${x.id}" aria-label="Delete sweep">Delete</button>→</span></div>`).join("")}</div>`;
+  h += `<div id="alSwDetail"></div></main>`;
+  $("#viewAlhist").innerHTML = h;
+  if (ALS.open) alShowSweep(ALS.open);
+}
+async function alShowSweep(id) {
+  ALS.open = id; const sw = ALS.sweep?.id === id ? ALS.sweep : await DB.getRun(id); const box = $("#alSwDetail"); if (!box) return;
+  if (!sw) { box.innerHTML = `<p class="muted">Not stored in this browser.</p>`; return; }
+  const canResume = !ALS.running && sw.status !== "done";
+  box.innerHTML = `<div class="card"><div class="sechead"><h3 class="h3">Sweep · ${esc(new Date(sw.createdAt).toLocaleString())}</h3><span class="muted small">${esc(A.PLANS[sw.plan]?.label || "")} · search ${({0.5: "Light", 1: "Standard", 1.5: "Deep"})[sw.searchDepth] || sw.searchDepth} · ${sw.reputableOnly ? "reputable sources only" : "all sources"} · $${AL.totalCost(sw).toFixed(2)}</span>${canResume ? `<button class="btn small" type="button" data-alresume="${sw.id}">⟳ Resume</button>` : ""}</div>
+    ${sw.tickers.map(t => { const r = sw.results?.[t];
+      return `<h4 class="h4">${esc(t)}${r ? ` · <span style="color:${moodColor(r.mood)}">${esc(r.headline)}</span>` : ""}</h4><div class="tblwrap"><table class="dt"><thead><tr><th>Sentinel</th><th>Status</th><th>Found</th><th>Searches</th><th>Model</th><th>Cost</th><th>Notes</th></tr></thead><tbody>${(sw.tasks[t] || []).map(sid => { const rep = sw.reports[AL.rk(t, sid)], s = AL.sentinel(sid);
+        return `<tr><td style="color:${s.color}"><b>${esc(s.name)}</b></td><td class="small">${esc(rep.status)}</td><td class="num">${(rep.data?.items || []).length}</td><td class="num">${rep.usage?.searches ?? (s.free ? "–" : 0)}</td><td class="small">${esc(shortModel(rep.model || (s.free ? "code" : "")))}</td><td class="num">${rep.usage && U.isNum(rep.usage.cost) ? "$" + rep.usage.cost.toFixed(3) : s.free || rep.status === "skipped" ? "$0" : "–"}</td><td class="small">${rep.text ? `<details><summary>${esc(rep.text.split("\n")[0].replace(/^[-*#\s]+/, "").slice(0, 80))}</summary><div class="md">${md(rep.text)}</div>${sourcesHtml(rep.sources)}</details>` : ""}${rep.error ? `<span class="err">${esc(rep.error)}</span>` : ""}</td></tr>`; }).join("")}</tbody></table></div>`; }).join("")}</div>`;
+}
+
+/* ---------- events ---------- */
+function alBind() {
+  document.addEventListener("click", async e => {
+    const t = e.target.closest("button, [data-alopen]"); if (!t) return; const d = t.dataset;
+    if (d.app) { setApp(d.app); return; }
+    if (d.viewGo) { go(d.viewGo); return; }
+    if (d.alplan) { ALS.settings.plan = d.alplan; alPersist.settings(); renderAlTop(); renderEngine(); updateNav(); return; }
+    if (d.aldepth) { ALS.settings.searchDepth = +d.aldepth; alPersist.settings(); renderAlTop(); return; }
+    if (d.alsrc) { ALS.settings.reputableOnly = d.alsrc === "rep"; alPersist.settings(); renderAlTop(); return; }
+    if (t.id === "alGo") { const v = $("#alSel").value; ALS.sel = v; alSweep(v === "all" ? alOn().map(w => U.normTicker(w.ticker)) : [v]); return; }
+    if (t.id === "alStop") { ALS.ctl && ALS.ctl.abort(); return; }
+    if (d.alimp) { ALS.filter.imp = d.alimp; renderAlItems(); return; }
+    if (d.alfilter) { ALS.filter.ticker = ALS.filter.ticker === d.alfilter ? "" : d.alfilter; renderAlItems(); document.getElementById("alFeed").scrollIntoView({behavior: "smooth", block: "start"}); return; }
+    if (t.id === "alSeenAll") { ALS.feed.forEach(i => { if (i.status === "new") i.status = "seen"; }); alPersist.feed(); updateNav(); renderAlItems(); return; }
+    if (t.id === "alSync") { alSync(); return; }
+    if (d.alact) { const card = t.closest("[data-alid]"); const it = ALS.feed.find(i => i.ticker + "|" + i.id === card.dataset.alid); if (!it) return;
+      if (d.alact === "committee") { setApp("committee"); $("#ticker").value = it.ticker; renderConsole(); $("#ticker").focus(); return; }
+      it.status = d.alact === "dismiss" ? "dismissed" : "seen"; alPersist.feed(); updateNav(); renderAlItems(); return; }
+    // alert list
+    if (t.id === "alAdd") { alReadList(); const add = $("#alNew").value.split(/[\s,;]+/).map(U.normTicker).filter(U.validTicker);
+      add.forEach(tk => { if (!ALS.list.some(w => U.normTicker(w.ticker) === tk)) ALS.list.push({ticker: tk, on: true, terms: "", below: "", above: ""}); }); alPersist.list(); renderAlList(); updateNav(); return; }
+    if (t.id === "alCopy") { alReadList(); let n = 0; S.watchlist.concat(S.holdings).forEach(w => { const tk = U.normTicker(w.ticker); if (U.validTicker(tk) && !ALS.list.some(x => U.normTicker(x.ticker) === tk)) { ALS.list.push({ticker: tk, on: true, terms: "", below: "", above: ""}); n++; } }); alPersist.list(); renderAlList(); toast(`Added ${n} ticker${n === 1 ? "" : "s"}.`); return; }
+    if (t.id === "alSaveList") { alReadList(); alPersist.list(); toast("Alert list saved."); updateNav(); return; }
+    if (d.aldel) { alReadList(); ALS.list.splice(+d.aldel, 1); alPersist.list(); renderAlList(); updateNav(); return; }
+    if (t.id === "alExport") { alExport(); return; }
+    if (t.id === "alBlockReset") { $("#alBlocked").value = AL.DEFAULTS.blocked; return; }
+    // sweeps
+    if (d.aldelsw) { e.stopPropagation(); if (d.confirm !== "1") { d.confirm = "1"; t.textContent = "Confirm"; setTimeout(() => { if (t.isConnected) { d.confirm = ""; t.textContent = "Delete"; } }, 3000); return; }
+      await DB.delRun(d.aldelsw); ALS.index = ALS.index.filter(x => x.id !== d.aldelsw); alPersist.index(); if (ALS.open === d.aldelsw) ALS.open = null; renderAlHist(); return; }
+    if (d.alresume) { const sw = await DB.getRun(d.alresume); if (!sw || !canRunEngine()) return; for (const k in sw.reports) { const r = sw.reports[k]; if (!["done", "skipped"].includes(r.status) && !(r.status === "waiting" && r.batch?.batchId)) { r.status = "queued"; r.error = null; } } go("alfeed"); alExecute(sw); return; }
+    if (d.alopen) { alShowSweep(d.alopen); return; }
+  });
+  document.addEventListener("change", e => { if (e.target.id === "alTick") { ALS.filter.ticker = e.target.value; renderAlItems(); } if (e.target.id === "alSel") { ALS.sel = e.target.value; renderAlTop(); } });
+}
+
+/* ---------- switching apps ---------- */
+function setApp(app) {
+  S.app = app === "alerts" ? "alerts" : "committee"; LS.set("app", S.app);
+  S.view = S.app === "alerts" ? (S.alView || "alfeed") : (S.cView || "analysis");
+  updateNav(); renderEngine(); renderView(); if (S.app === "committee") renderConsole(); scrollTo(0, 0);
+}
+async function alBoot() {
+  // sweeps that were waiting on Anthropic's Batch API keep going
+  for (const x of ALS.index.filter(x => x.status === "running")) {
+    const sw = await DB.getRun(x.id); if (!sw) continue;
+    const waiting = Object.values(sw.reports).some(r => r.status === "waiting" && r.batch?.batchId);
+    if (waiting && S.engine === "api" && (S.key || (S.settings.gatewayAnthropic && S.settings.gateway)) && !ALS.running) { toast("Picking up a sweep waiting at Anthropic's Batch API.", 5000); alExecute(sw); }
+    else { sw.status = "stopped"; Object.values(sw.reports).forEach(r => { if (["running", "waiting"].includes(r.status)) { r.status = "stopped"; r.error = "Interrupted when the page closed. Open it under Sweeps and press Resume."; } }); await alSave(sw); }
+  }
+}
+
 /* ---- src/ui/90-app.js ---- */
 /* Controllers, events and boot. */
 
@@ -4175,9 +4928,9 @@ function renderEngine() {
   if (S.engine === null) { w.innerHTML = `<span class="status">Connecting…</span>`; return; }
   if (S.engine === "claude") { w.innerHTML = `<span class="status">✓ Claude account active</span><span class="note">Running inside claude.ai on your account's most capable model. Live web search and the data gateway aren't available here, so market figures come from model knowledge and are flagged unverified. For Opus 5.5 with live search and SEC data, use the GitHub version.</span>`; return; }
   if (S.engine === "none") { bar.classList.add("off"); w.innerHTML = `<span class="status">Engine unavailable</span><span class="note">This view can't reach Claude. Open the artifact on claude.ai and allow it to use Claude, or run index.html with an Anthropic API key.</span>`; return; }
-  if (S.settings.gatewayAnthropic && S.settings.gateway && !S._editKey) { w.innerHTML = `<span class="status">✓ Anthropic via gateway</span><span class="note">Calls go through your gateway, which holds the key · ${esc(A.PLANS[S.plan]?.label || "")} plan</span>${gw}`; return; }
+  if (S.settings.gatewayAnthropic && S.settings.gateway && !S._editKey) { w.innerHTML = `<span class="status">✓ Anthropic via gateway</span><span class="note">Calls go through your gateway, which holds the key · ${esc(A.PLANS[curPlan()]?.label || "")} plan</span>${gw}`; return; }
   if (S.key && !S._editKey) {
-    w.innerHTML = `<span class="status">✓ API key active</span><span class="note">Key ending ${esc(S.key.slice(-4))} · ${LS.get("key", "") ? "remembered on this device" : "this session only"} · ${esc(A.PLANS[S.plan]?.label || "")} plan</span>${gw}<button class="btn small" id="chgKey" type="button">🔑 Change key</button><button class="btn small" id="forgetKey" type="button">Forget</button>`;
+    w.innerHTML = `<span class="status">✓ API key active</span><span class="note">Key ending ${esc(S.key.slice(-4))} · ${LS.get("key", "") ? "remembered on this device" : "this session only"} · ${esc(A.PLANS[curPlan()]?.label || "")} plan</span>${gw}<button class="btn small" id="chgKey" type="button">🔑 Change key</button><button class="btn small" id="forgetKey" type="button">Forget</button>`;
     $("#chgKey").onclick = openKeyForm; $("#forgetKey").onclick = () => { S.key = ""; LS.del("key"); try { sessionStorage.removeItem("aic6.key"); } catch {} renderEngine(); };
   } else {
     bar.classList.add("off");
@@ -4189,25 +4942,38 @@ function renderEngine() {
 function openKeyForm() { S._editKey = true; renderEngine(); setTimeout(() => $("#keyIn")?.focus(), 0); }
 
 /* ---------------- nav ---------------- */
-const VIEWS = ["analysis", "discover", "compare", "portfolio", "record", "history", "lab", "settings"];
+const VIEWS = ["analysis", "discover", "compare", "portfolio", "record", "history", "lab", "settings", "alfeed", "allist", "alhist"];
+const curPlan = () => S.app === "alerts" ? ALS.settings.plan : S.plan;
 function updateNav() {
+  const al = S.app === "alerts";
+  $$(".nav .c-only").forEach(b => b.hidden = al); $$(".nav .a-only").forEach(b => b.hidden = !al);
+  $$(".appswitch [data-app]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.app === S.app)));
+  document.documentElement.classList.toggle("app-alerts", al);
+  $("#appTitle").textContent = al ? "AI Stock Alert System" : "AI Investment Committee";
+  const un = alUnseen(), unU = un.filter(i => i.urgent).length;
+  const bd = $("#alBadge"); bd.hidden = !un.length || al; bd.textContent = unU ? `${unU}!` : un.length;
+  const navFeed = document.querySelector('.nav [data-view="alfeed"]'); if (navFeed) navFeed.innerHTML = "Feed" + (un.length ? ` <span class="cnt">${un.length}</span>` : "");
+  $("#navAlList").textContent = `Alert list (${alOn().length})`;
   $("#navHistory").textContent = `History (${S.index.length})`;
   const due = S.watchlist.filter(isDue).length; $("#navPortfolio").innerHTML = "Portfolio" + (due ? ` <span class="cnt">${due}</span>` : "");
   VIEWS.forEach(v => { const b = document.querySelector(`.nav [data-view="${v}"]`); if (b) { if (S.view === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
     document.getElementById("view" + v[0].toUpperCase() + v.slice(1)).hidden = S.view !== v; });
   const hc = $("#headChip"), c = S.run?.cio;
-  if (S.run && c?.verdict) { hc.hidden = false; hc.style.color = verdictColor(c.verdict); hc.textContent = `${S.run.ticker} · ${c.verdict}`; }
+  if (al) { hc.hidden = !ALS.running && !unU; hc.style.color = ALS.running ? "var(--accent)" : "var(--bad)"; hc.textContent = ALS.running ? "Sweeping…" : `${unU} urgent`; }
+  else if (S.run && c?.verdict) { hc.hidden = false; hc.style.color = verdictColor(c.verdict); hc.textContent = `${S.run.ticker} · ${c.verdict}`; }
   else if (S.run) { hc.hidden = false; hc.style.color = "var(--fg-2)"; hc.textContent = `${S.run.ticker} · ${S.running ? "in session" : S.run.status}`; }
   else hc.hidden = true;
   const bgN = Object.keys(S.bg).length;
-  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6.0.4 · Claude · knowledge mode" : `Private · Alpha Fund · v6.0.4 · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
+  if (al) $("#eyebrow").textContent = `Private · Alpha Fund · v${A.VERSION} · ${A.PLANS[ALS.settings.plan]?.label || ""} plan · digest 6:30 am CT${ALS.running ? " · sweeping" : ""}`;
+  else $("#eyebrow").textContent = S.engine === "claude" ? `Private · Alpha Fund · v${A.VERSION} · Claude · knowledge mode` : `Private · Alpha Fund · v${A.VERSION} · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
 }
 function renderView() {
   if (S.view === "discover") renderDiscover(); else if (S.view === "compare") renderCompare(); else if (S.view === "portfolio") renderPortfolio();
   else if (S.view === "record") renderRecord(); else if (S.view === "history") renderHistory(); else if (S.view === "lab") renderLab(); else if (S.view === "settings") renderSettings();
+  else if (S.view === "alfeed") renderAlFeed(); else if (S.view === "allist") renderAlList(); else if (S.view === "alhist") renderAlHist();
 }
 function renderAll() { updateNav(); renderEngine(); renderConsole(); renderBoard(); renderResults(); renderTabs(); renderProgress(); if (S.view !== "analysis") renderView(); }
-function go(view) { S.view = view; updateNav(); renderView(); renderConsole(); scrollTo(0, 0); }
+function go(view) { if (/^al/.test(view)) S.alView = view; else if (view !== "settings") S.cView = view; S.view = view; updateNav(); renderView(); renderConsole(); scrollTo(0, 0); }
 
 async function openRun(id) {
   if (S.running) { toast("Wait for the current run to finish."); return; }
@@ -4230,7 +4996,7 @@ try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () 
 function bind() {
   document.querySelectorAll(".nav [data-view]").forEach(b => b.onclick = () => go(b.dataset.view));
   $("#navTheme").onclick = () => setTheme(themeIsLight(LS.get("theme", "dark")) ? "dark" : "light");
-  $("#navPdf").onclick = () => { if (!S.run) { toast("Run or open an analysis first."); return; } if (S.inClaude) { exportHTML(S.run); toast("Printing isn't available inside claude.ai — saving a printable report instead."); return; } go("analysis"); S.open = {}; S.run.seats.forEach(id => S.open[id] = true); S.tab = "minutes"; renderTabs(); setTimeout(() => window.print(), 60); };
+  $("#navPdf").onclick = () => { if (S.app === "alerts") { if (S.inClaude) { toast("Printing isn't available inside claude.ai."); return; } window.print(); return; } if (!S.run) { toast("Run or open an analysis first."); return; } if (S.inClaude) { exportHTML(S.run); toast("Printing isn't available inside claude.ai — saving a printable report instead."); return; } go("analysis"); S.open = {}; S.run.seats.forEach(id => S.open[id] = true); S.tab = "minutes"; renderTabs(); setTimeout(() => window.print(), 60); };
   $("#runForm").onsubmit = e => { e.preventDefault(); startRun(); };
   $("#reBtn").onclick = () => startRun({re: true});
   $("#resumeBtn").onclick = resumeRun; $("#stopBtn").onclick = stopRun;
@@ -4270,7 +5036,7 @@ function bind() {
     // history
     if (d.del) { e.stopPropagation(); if (d.confirm !== "1") { d.confirm = "1"; t.textContent = "Confirm"; setTimeout(() => { if (t.isConnected) { d.confirm = ""; t.textContent = "Delete"; } }, 3000); return; }
       await DB.delRun(d.del); S.index = S.index.filter(x => x.id !== d.del); LS.set("index", S.index); if (S.run?.id === d.del && !S.running) S.run = null; renderAll(); renderHistory(); return; }
-    if (t.classList.contains("hrow")) { openRun(d.id); return; }
+    if (t.classList.contains("hrow") && d.id) { openRun(d.id); return; }
     if (d.openrun) { openRun(d.openrun); return; }
     // discover
     if (d.disc) { loadDiscover(d.disc); return; }
@@ -4314,7 +5080,7 @@ function bind() {
   // report accordion
   const toggleRep = h => { const id = h.dataset.id, art = h.parentElement, open = art.classList.contains("closed"); S.open[id] = open; art.classList.toggle("closed", !open); h.setAttribute("aria-expanded", open); };
   document.addEventListener("click", e => { const h = e.target.closest(".rep>header[data-id]"); if (h && !e.target.closest("button")) toggleRep(h); });
-  document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".rep>header[data-id]")) { e.preventDefault(); toggleRep(e.target); } if (e.key === "Enter" && e.target.classList.contains("hrow")) openRun(e.target.dataset.id); });
+  document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".rep>header[data-id]")) { e.preventDefault(); toggleRep(e.target); } if (e.key === "Enter" && e.target.classList.contains("hrow")) { if (e.target.dataset.id) openRun(e.target.dataset.id); else if (e.target.dataset.alopen) alShowSweep(e.target.dataset.alopen); } });
   document.addEventListener("change", e => {
     const t = e.target, d = t.dataset;
     if (t.id === "lfSeat" || t.id === "lfType") { S.ledgerFilter = {seat: $("#lfSeat").value, type: $("#lfType").value}; renderTabs(); return; }
@@ -4325,7 +5091,7 @@ function bind() {
     if (t.id === "importAll") { const f = t.files[0]; if (f) importAll(f); t.value = ""; }
   });
   document.addEventListener("submit", async e => {
-    const f = e.target; if (!["jform", "ideaForm", "cmpForm", "labForm", "profileForm", "costForm", "dataForm", "seatsForm", "ghForm"].includes(f.id)) return;
+    const f = e.target; if (!["jform", "ideaForm", "cmpForm", "labForm", "profileForm", "costForm", "alSetForm", "dataForm", "seatsForm", "ghForm"].includes(f.id)) return;
     e.preventDefault();
     if (f.id === "jform" && S.run) { const j = {runId: S.run.id, ticker: S.run.ticker, date: U.today(), verdict: S.run.cio?.verdict, overall: S.run.cio?.overall, decision: $("#jDecision").value, price: $("#jPrice").value, size: $("#jSize").value, notes: $("#jNotes").value};
       if (!j.decision) { toast("Choose a decision."); return; } const i = S.journal.findIndex(x => x.runId === j.runId); if (i >= 0) S.journal[i] = j; else S.journal.unshift(j); persist.journal(); toast("Decision logged in the journal."); }
@@ -4340,12 +5106,14 @@ function bind() {
         discountRate: +v("sDR") || 9, terminalGrowth: +v("sTG") || 2.5, defaultMode: v("sMode")});
       S.settings.model = S.settings.judgeModel; S.plan = S.settings.plan; LS.set("plan", S.plan);
       LS.set("settings", S.settings); updateNav(); renderEngine(); renderConsole(); toast("Cost & model settings saved."); }
+    if (f.id === "alSetForm") { ALS.settings.urgentRule = $("#alRule").value; ALS.settings.blocked = $("#alBlocked").value.trim() || AL.DEFAULTS.blocked; alPersist.settings(); toast("Alert settings saved. Export alerts.json again for GitHub."); }
     if (f.id === "dataForm") { readDataForm(); LS.set("settings", S.settings); applyEnv(); renderEngine(); updateNav(); toast("Data settings saved."); }
     if (f.id === "seatsForm") { S.settings.customSeats = ["desk"].concat($$("[data-cs]").filter(x => x.checked && x.dataset.cs !== "desk").map(x => x.dataset.cs)); LS.set("settings", S.settings); toast("Seats saved. Choose Custom mode to use them."); }
     if (f.id === "ghForm") { Object.assign(S.settings, {ghOwner: $("#ghO").value.trim(), ghRepo: $("#ghR").value.trim(), ghBranch: $("#ghB").value.trim() || "main"}); LS.set("settings", S.settings); toast("GitHub settings saved."); }
   });
-  addEventListener("beforeunload", e => { const batchOnly = S.run && S.run.seats.every(id => S.run.reports[id].status !== "running"); if ((S.running && !batchOnly) || Object.keys(S.bg).length) { e.preventDefault(); e.returnValue = ""; } });
-  setInterval(() => { if (S.running && S.run?.batch) { renderBoard(); renderProgress(); } }, 30000);
+  alBind();
+  addEventListener("beforeunload", e => { if (ALS.running && ALS.sweep && Object.values(ALS.sweep.reports).some(r => r.status === "running")) { e.preventDefault(); e.returnValue = ""; return; } const batchOnly = S.run && S.run.seats.every(id => S.run.reports[id].status !== "running"); if ((S.running && !batchOnly) || Object.keys(S.bg).length) { e.preventDefault(); e.returnValue = ""; } });
+  setInterval(() => { if (S.running && S.run?.batch) { renderBoard(); renderProgress(); } if (ALS.running && S.view === "alfeed") renderAlBoard(); }, 30000);
 }
 function readDataForm() { if (!$("#gUrl")) return; Object.assign(S.settings, {gateway: $("#gUrl").value.trim().replace(/\/+$/, ""), gatewayToken: $("#gTok").value.trim(), gatewayAnthropic: $("#gAnth").value === "true"}); }
 function readHoldings() { $$("[data-hi]").forEach(tr => { const h = S.holdings[+tr.dataset.hi]; if (!h) return; tr.querySelectorAll("[data-hf]").forEach(inp => { h[inp.dataset.hf] = inp.dataset.hf === "ticker" ? U.normTicker(inp.value) : inp.value.trim(); }); }); }
@@ -4374,6 +5142,7 @@ async function checkAlerts() {
   renderAll();
   S.engine = await detectEngine(); applyEnv();
   renderAll();
+  alBoot();
   if (waiting.length && S.engine === "api" && (S.key || (S.settings.gatewayAnthropic && S.settings.gateway))) {
     toast(`Picking up ${waiting.length} run${waiting.length > 1 ? "s" : ""} waiting at Anthropic's Batch API.`, 5000);
     for (const r of waiting) { if (S.run && r.id === S.run.id && !S.running) execute(r); else continueQuiet(r); }
