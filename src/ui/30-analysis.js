@@ -16,8 +16,19 @@ function renderConsole() {
   $("#docChips").innerHTML = S.member.docs.map((d, i) => `<span class="fchip">${esc(d.name)} <small>${esc(d.kind)} · ${U.fmtNum(d.text.length, 0)} chars</small><button type="button" data-rmdoc="${i}" aria-label="Remove ${esc(d.name)}">×</button></span>`).join("");
   $("#askBar").hidden = !(r && S.view === "analysis" && r.seats.some(id => r.reports[id]?.status === "done" && !A.seat(id).code_only));
   $("#askBtn").disabled = S.running || S.asking;
+  renderPlans();
   $("#hint").textContent = S.running ? "The committee is in session — each stage reads every earlier stage; seats in a stage work in parallel" : "Enter one stock or ETF ticker · choose a mode · optionally add your note and documents · run";
 }
+
+function renderPlans() {
+  const box = $("#planBox"), est = $("#estLine"), show = S.engine === "api";
+  box.hidden = est.hidden = !show; if (!show) return;
+  box.innerHTML = Object.entries(A.PLANS).map(([k, p]) => `<button type="button" role="radio" class="plan-opt" data-plan="${k}" aria-checked="${S.plan === k}" ${S.running ? "disabled" : ""}><b>${esc(p.label)}</b><span>${esc(p.short)}</span></button>`).join("");
+  const e = Cost.estimate(S.mode, S.plan), spent = Cost.spentThisMonth(), b = U.num(S.settings.monthlyBudget);
+  est.innerHTML = `Estimated <b class="num">≈ $${e.cost.toFixed(2)}</b> for this run · ${esc(e.minutes)} · spent this month <b class="num">$${spent.toFixed(2)}</b>${U.isNum(b) && b > 0 ? ` of $${b.toFixed(0)}` : ""}${S.plan === "saver" ? ` · <span class="muted">you can close the tab while it waits — it picks up when you come back</span>` : ""}`;
+}
+
+function waitMins(r) { const t = r?.batchInfo?.since || r?.batch?.submittedAt; return t ? Math.max(0, Math.round((Date.now() - t) / 60000)) : 0; }
 
 function renderBoard() {
   const ids = seatsShown(), run = S.run;
@@ -29,7 +40,9 @@ function renderBoard() {
       let state = "";
       if (s === "running") state = id === "desk" ? (r.progress || "fetching…") : r.searches?.length ? `searching · ${r.searches.length}` : "writing…";
       else if (s === "done") { const sc = PL.seatScore(id, r.data); state = `✓ ${secs(r.ms || 0)}${sc ? " · " + sc + "/10" : ""}${r.usage?.searches ? " · " + r.usage.searches + " src" : ""}`; }
-      else if (s === "skipped") state = "no input"; else if (s !== "idle") state = s;
+      else if (s === "waiting") state = `⧗ queued at Anthropic · ${waitMins(r)}m`;
+      else if (s === "skipped") state = id === "member" ? "no input" : "skipped (saves cost)"; else if (s !== "idle") state = s;
+      if (s === "done" && r.reused) state = "↺ reused · free";
       return `<button class="seat" type="button" data-st="${s}" data-id="${id}" style="--c:${a.color}"><span class="glyph">${a.code}</span><span class="name">${esc(a.name)}</span><span class="blurb">${esc(a.blurb)}</span>${state ? `<span class="state">${esc(state)}</span>` : ""}</button>`;
     }).join("")}</div></div>`).join("");
 }
@@ -38,13 +51,14 @@ function renderProgress(t0) {
   const p = $("#progress"), run = S.run; if (!run) { p.hidden = true; return; }
   p.hidden = false;
   const ids = run.seats.filter(id => run.reports[id].status !== "skipped");
+  const waiting = ids.filter(id => run.reports[id].status === "waiting");
   const done = ids.filter(id => run.reports[id].status === "done").length;
   const cur = ids.filter(id => run.reports[id].status === "running").map(id => A.seat(id).name);
   $("#progBar").style.width = (done / ids.length * 100) + "%";
-  $("#progStep").textContent = S.running && cur.length ? cur.join(" · ").toUpperCase() : `${done}/${ids.length} SEATS · ${run.status.toUpperCase()}`;
-  const u = PL.totalUsage(run), cost = U.costOf(u, S.settings);
+  $("#progStep").textContent = S.running && waiting.length ? `WAITING FOR ANTHROPIC'S BATCH · ${waiting.map(id => A.seat(id).name).join(" · ").toUpperCase()} · ${waitMins(run.reports[waiting[0]])} MIN` : S.running && cur.length ? cur.join(" · ").toUpperCase() : `${done}/${ids.length} SEATS · ${run.status.toUpperCase()}`;
+  const u = PL.totalUsage(run), cost = PL.totalCost(run), cap = +S.settings.runCap;
   $("#progMeta").textContent = (u ? `${fmtK(u.in + u.cacheRead + u.cacheWrite)} in${u.cacheRead ? " (" + fmtK(u.cacheRead) + " cached)" : ""} · ${fmtK(u.out)} out · ${u.searches} searches` : run.engine === "claude" ? "claude.ai engine" : "")
-    + (cost != null ? ` · ≈$${cost.toFixed(2)}${S.settings.budget ? " of $" + (+S.settings.budget).toFixed(2) : ""}` : "") + (S.running && t0 ? ` · ${secs(Date.now() - t0)}` : "");
+    + (run.engine === "api" ? ` · $${cost.toFixed(2)}${cap ? " of $" + cap.toFixed(2) + " cap" : ""}` : "") + (run.plan && run.engine === "api" ? " · " + (A.PLANS[run.plan]?.label || run.plan) : "") + (S.running && t0 ? ` · ${secs(Date.now() - t0)}` : "");
 }
 
 /* ---------------- results ---------------- */
@@ -54,6 +68,15 @@ function renderResults() {
   box.hidden = false;
   const c = run.cio, fs = run.factsheet || {}, price = PL.priceOf(run);
   let h = "";
+  const scr = run.reports.screen?.data;
+  if (!c && scr) {
+    const col = scr.call === "PROMISING" ? "var(--good)" : scr.call === "PASS" ? "var(--bad)" : "var(--warn)";
+    h += `<div class="sechead"><span class="lbl">Screen · ${esc(run.ticker)}${fs.company?.name ? " · " + esc(fs.company.name) : ""}</span><span class="muted small">${esc(fmtDate(run.createdAt))} · ${U.isNum(run.cost) ? "$" + run.cost.toFixed(2) : ""}</span></div>
+      <div class="card hero" style="--v:${col}"><div class="hero-top"><div class="big num">${scr.score_screen ?? "–"}<small>/ 10</small></div><div class="verdict-box"><span class="chip" style="color:${col}">${esc(scr.call || "—")}</span><span class="conv">Quick screen — not a verdict</span></div></div>
+      ${(scr.reasons || []).length ? `<p><b>Why</b></p><ul class="tight">${scr.reasons.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+      ${(scr.questions || []).length ? `<p><b>What the full committee should answer</b></p><ul class="tight">${scr.questions.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+      <div class="row-actions"><button class="btn primary small" type="button" data-send="${esc(run.ticker)}" data-mode="standard">▶ Run the full committee</button></div></div>`;
+  }
   if (c) {
     const vc = verdictColor(c.verdict), ov = c.overall;
     h += `<div class="sechead"><span class="lbl">Scorecard · ${esc(run.ticker)}${fs.company?.name ? " · " + esc(fs.company.name) : ""}</span>
@@ -158,7 +181,7 @@ function journalFormHtml(run) {
 }
 
 /* ---------------- tabs ---------------- */
-const TABS = [["minutes", "Minutes"], ["desk", "Data Desk"], ["chart", "Chart"], ["evidence", "Evidence"], ["debate", "Debate"], ["qa", "Q&A"]];
+const TABS = [["minutes", "Minutes"], ["desk", "Data Desk"], ["chart", "Chart"], ["evidence", "Evidence"], ["debate", "Debate"], ["qa", "Q&A"], ["cost", "Cost"]];
 function renderTabs() {
   const run = S.run, sec = $("#tabSec");
   if (!run) { sec.hidden = true; return; }
@@ -172,11 +195,30 @@ function renderTabs() {
   else if (S.tab === "evidence") b.innerHTML = evidenceHtml(run);
   else if (S.tab === "debate") b.innerHTML = debateHtml(run);
   else if (S.tab === "qa") renderQA(b);
+  else if (S.tab === "cost") b.innerHTML = costHtml(run);
 }
+
+/* ---------- Cost ---------- */
+function costHtml(run) {
+  if (run.engine !== "api") return `<p class="muted">Runs inside claude.ai use your Claude plan, so there's no per-run bill to show.</p>`;
+  const rows = run.seats.filter(id => !A.seat(id).code_only || id === "desk").map(id => { const r = run.reports[id] || {}, u = r.usage;
+    const note = A.seat(id).code_only ? "computed in code · free" : r.reused ? "reused · free" : r.status === "skipped" ? "skipped" : r.status === "waiting" ? "waiting" : (u?.batch ? "batch ½ price" : r.status === "done" ? "instant" : r.status);
+    return `<tr><td style="color:${A.seat(id).color}"><b>${esc(A.seat(id).name)}</b></td><td class="small">${esc(shortModel(r.model || u?.model || (A.seat(id).code_only ? "code" : "")))}</td><td class="small muted">${esc(note)}</td><td class="num">${u ? fmtK(u.in + (u.cacheRead || 0) + (u.cacheWrite || 0)) : "–"}</td><td class="num">${u ? fmtK(u.out) : "–"}</td><td class="num">${u?.searches ?? "–"}</td><td class="num">${u && U.isNum(u.cost) ? "$" + u.cost.toFixed(3) : r.reused || A.seat(id).code_only ? "$0" : "–"}</td></tr>`; });
+  (run.rebuttals || []).filter(x => x.usage).forEach(x => rows.push(`<tr><td>Rebuttal · ${esc(A.seat(x.seat)?.name || x.seat)}</td><td class="small">${esc(shortModel(x.usage.model))}</td><td class="small muted">${x.usage.batch ? "batch ½ price" : "instant"}</td><td class="num">${fmtK(x.usage.in + (x.usage.cacheRead || 0) + (x.usage.cacheWrite || 0))}</td><td class="num">${fmtK(x.usage.out)}</td><td class="num">${x.usage.searches || 0}</td><td class="num">$${(x.usage.cost || 0).toFixed(3)}</td></tr>`));
+  if (run.extraUsage) rows.push(`<tr><td>Helper (document digests, JSON fixes)</td><td class="small">${esc(shortModel(S.settings.helperModel))}</td><td></td><td class="num">${fmtK(run.extraUsage.in)}</td><td class="num">${fmtK(run.extraUsage.out)}</td><td class="num">0</td><td class="num">$${(run.extraUsage.cost || 0).toFixed(3)}</td></tr>`);
+  const total = PL.totalCost(run), maxEst = Cost.estimate(run.mode, "max").cost;
+  return `<div class="card"><div class="tiles"><div class="tile"><span>This run</span><b class="num">$${total.toFixed(2)}</b><small>${esc(A.PLANS[run.plan]?.label || run.plan || "")} plan</small></div>
+    ${run.plan !== "max" ? `<div class="tile"><span>Same run on Max (est.)</span><b class="num">$${maxEst.toFixed(2)}</b><small>${maxEst > total ? "saved ≈ $" + (maxEst - total).toFixed(2) : ""}</small></div>` : ""}
+    <div class="tile"><span>Spent this month</span><b class="num">$${Cost.spentThisMonth().toFixed(2)}</b>${U.num(S.settings.monthlyBudget) ? `<small>of $${(+S.settings.monthlyBudget).toFixed(0)} budget</small>` : ""}</div></div>
+    <p class="small muted">Prices per million tokens: Opus 5.5 $4 in / $20 out, Sonnet 5.5 $2 / $10, Haiku 4.5 $1 / $5; web searches $10 per 1,000; batch work is half price; cached input is billed at a small fraction. Estimates learn from your own runs.</p></div>
+    <div class="card"><div class="tblwrap"><table class="dt"><thead><tr><th>Seat</th><th>Model</th><th>How</th><th>In</th><th>Out</th><th>Searches</th><th>Cost</th></tr></thead><tbody>${rows.join("")}
+    <tr><th>Total</th><td></td><td></td><td></td><td></td><td></td><td class="num"><b>$${total.toFixed(2)}</b></td></tr></tbody></table></div></div>`;
+}
+function shortModel(m) { m = String(m || ""); return /opus/.test(m) ? "Opus 5.5" : /sonnet/.test(m) ? "Sonnet 5.5" : /haiku/.test(m) ? "Haiku 4.5" : m; }
 
 function renderMinutes(b) {
   const run = S.run;
-  const ids = run.seats.filter(id => run.reports[id].status !== "queued" && run.reports[id].status !== "skipped");
+  const ids = run.seats.filter(id => run.reports[id].status !== "queued" && !(run.reports[id].status === "skipped" && !run.reports[id].text));
   b.innerHTML = `<div class="sechead"><span class="lbl">Committee minutes</span><button class="btn small" id="expandAll" type="button">Expand all</button><button class="btn small" id="collapseAll" type="button">Collapse all</button></div>
   <div class="reports">${ids.map(id => { const a = A.seat(id), r = run.reports[id]; const open = S.open[id] !== undefined ? S.open[id] : r.status !== "done";
     return `<article class="rep ${open ? "" : "closed"}" id="rep-${id}" style="--c:${a.color}"><header data-id="${id}" role="button" tabindex="0" aria-expanded="${open}"><span class="glyph">${a.code}</span>
@@ -188,16 +230,22 @@ function repMeta(id) {
   if (id === "cio" && S.run.cio?.verdict) bits.push(`<span class="chip sm" style="color:${verdictColor(S.run.cio.verdict)}">${esc(S.run.cio.verdict)}</span>`);
   const sc = PL.seatScore(id, r.data); if (sc) bits.push(`<span class="num" style="color:${scoreColor(sc)}">${sc}/10</span>`);
   if (r.data?._original_score) bits.push(`<span class="muted small">revised from ${r.data._original_score}</span>`);
+  if (r.status === "done" && r.reused) bits.push(`<span class="tag">↺ reused ${esc(fmtDate(r.reused.at))}</span>`);
   if (r.status === "done") { bits.push(`<span class="num">${secs(r.ms || 0)}</span>`); if (r.usage) bits.push(`<span class="num">${fmtK(r.usage.in + r.usage.out + (r.usage.cacheRead || 0) + (r.usage.cacheWrite || 0))} tok</span>`); if (r.usage?.searches) bits.push(`<span>${r.usage.searches} searches</span>`); }
   else if (r.status === "running") bits.push(`<span style="color:${A.seat(id).color}">● live</span>`);
+  else if (r.status === "waiting") bits.push(`<span class="muted">⧗ batch · ${waitMins(r)}m</span>`);
+  else if (r.status === "skipped") bits.push(`<span class="muted">skipped</span>`);
   else bits.push(`<span style="color:var(--bad)">${esc(r.status)}</span>`);
   bits.push(`<span class="tw">▾</span>`); return bits.join("");
 }
 function renderRepBody(id) {
   const el = document.getElementById("body-" + id); if (!el || !S.run) return;
   const r = S.run.reports[id], a = A.seat(id); let h = "";
-  if (id === "desk") { h = r.status === "running" ? `<p class="muted">${esc(r.progress || "Fetching primary data…")}<span class="cursor"></span></p>` : deskSummaryHtml(S.run.factsheet); }
+  if (r.reused) h += `<p class="small muted">↺ Reused from the ${esc(fmtDate(r.reused.at))} run on this ticker — no new cost.${id === "desk" ? "" : " Re-analysis and Earnings mode always do fresh research."}</p>`;
+  if (id === "desk") { h += r.status === "running" ? `<p class="muted">${esc(r.progress || "Fetching primary data…")}<span class="cursor"></span></p>` : deskSummaryHtml(S.run.factsheet); }
   else if (id === "member") h = `<div class="md">${md(r.text)}</div>`;
+  else if (r.status === "skipped") h = `<p class="muted">${esc(r.text)}</p>`;
+  else if (r.status === "waiting") h = `<p class="muted">Sent to Anthropic's Batch API at half price ${waitMins(r)} min ago${r.batchInfo?.status ? " · " + esc(r.batchInfo.status.replace("_", " ")) : ""}. Most batches finish within an hour. You can close this tab — the app picks it up when you come back.<span class="cursor"></span></p>`;
   else {
     if (r.status === "running" && r.searches?.length) h += `<div class="searching">${r.searches.slice(-4).map(q => `<div>${esc(q)}</div>`).join("")}</div>`;
     if (r.text) h += `<div class="md">${md(r.text)}${r.status === "running" ? '<span class="cursor"></span>' : ""}</div>`;

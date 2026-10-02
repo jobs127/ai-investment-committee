@@ -15,5 +15,8 @@ r = await call("/fetch?url=" + encodeURIComponent("https://data.sec.gov/x.json")
 assert.equal(seen.at(-1).o.headers["User-Agent"], "Test t@example.com"); console.log("  ✓ SEC fetch with User-Agent + CORS");
 r = await call("/fetch?text=1&url=" + encodeURIComponent("https://www.sec.gov/Archives/k.htm"), {headers: {"x-aic-token": "tok"}}); const t = await r.text(); assert.ok(t.includes("Risk & more") && !t.includes("<p>") && !t.includes("x()")); console.log("  ✓ HTML stripped:", JSON.stringify(t));
 r = await call("/anthropic/v1/messages", {method: "POST", headers: {"x-aic-token": "tok", "content-type": "application/json"}, body: "{}"}); assert.equal(r.status, 200); assert.equal(seen.at(-1).o.headers["x-api-key"], "sk-x"); console.log("  ✓ Anthropic proxy adds the key");
+const env2 = {ACCESS_TOKEN: "tok"};
+r = await worker.fetch(new Request("https://gw.example/anthropic/v1/messages/batches/msgbatch_1", {headers: {"x-aic-token": "tok", "x-api-key": "sk-user"}}), env2, ctx);
+assert.equal(r.status, 200); assert.equal(seen.at(-1).o.headers["x-api-key"], "sk-user"); assert.equal(seen.at(-1).o.method, "GET"); console.log("  ✓ Batch status GET forwarded with the app's key");
 r = await call("/fetch", {method: "OPTIONS"}); assert.equal(r.status, 204); console.log("  ✓ CORS preflight");
 console.log("All worker tests passed.");

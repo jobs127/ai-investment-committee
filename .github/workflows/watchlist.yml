@@ -1,15 +1,17 @@
-name: Watchlist committee
+name: Committee queue (watchlist + benchmarks)
 
+# Runs every 30 minutes. Each run advances queued committee runs by one step (Saver plan = Anthropic Batch API,
+# half price), starts watchlist tickers that are due, checks price alerts once a day, and commits results.
 on:
   schedule:
-    - cron: "17 13 * * 1-5"   # weekdays 13:17 UTC (7:17 am Denver, MDT)
+    - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
       ticker:
-        description: "Run one ticker now (blank = all due)"
+        description: "Start one ticker now (blank = all due)"
         required: false
       all:
-        description: "Re-run every ticker, due or not"
+        description: "Start every watchlist ticker, due or not"
         type: boolean
         default: false
 
@@ -18,37 +20,37 @@ permissions:
   issues: write
 
 concurrency:
-  group: watchlist
+  group: committee-queue
   cancel-in-progress: false
 
 jobs:
-  run:
+  queue:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Run due tickers and check alerts
+      - name: Advance the queue
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "No ANTHROPIC_API_KEY secret yet — nothing to do."; exit 0; fi
           ARGS=""
           if [ -n "${{ inputs.ticker }}" ]; then ARGS="--ticker ${{ inputs.ticker }}"; fi
           if [ "${{ inputs.all }}" = "true" ]; then ARGS="$ARGS --all"; fi
-          node runner/run.mjs watchlist $ARGS
-      - name: Update the track record (first weekday of the month)
+          node runner/run.mjs queue $ARGS
+      - name: Update the track record (first days of the month)
         env:
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
         run: |
-          if [ "$(date -u +%d)" -le "03" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then node runner/run.mjs track; fi
+          if [ "$(date -u +%d)" -le "02" ] && [ "$(date -u +%H)" = "13" ]; then node runner/run.mjs track; fi
       - name: Commit results
         run: |
           git config user.name "aic-bot"
           git config user.email "aic-bot@users.noreply.github.com"
-          git add results
-          git diff --cached --quiet || git commit -m "Committee results $(date -u +%F)"
-          git push
+          git add results evals 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "Committee queue $(date -u +%F' '%H:%M)" && git pull --rebase && git push)

@@ -79,15 +79,14 @@ async function runCompare() {
   if (tickers.length < 2) { toast("Enter 2–5 tickers."); return; }
   if (!canRunEngine()) return;
   S.cmpTickers = tickers.join(", "); S.cmpMode = $("#cmpMode").value; S.cmpReuse = $("#cmpReuse").checked;
-  const runs = [];
-  for (const t of tickers) {
-    const recent = S.cmpReuse && S.index.find(h => h.ticker === t && h.status === "done" && Date.now() - h.createdAt < 14 * 864e5);
-    if (recent) { runs.push(await DB.getRun(recent.id)); continue; }
-    S.busy.compare = `Running ${t}…`; renderCompare();
-    const run = await startRun({ticker: t, mode: S.cmpMode, quiet: true});
-    if (!run || run.status !== "done") { S.busy.compare = false; renderCompare(); toast(`${t} didn't finish; comparison stopped.`); return; }
-    runs.push(run);
-  }
+  const reuse = [], fresh = [];
+  for (const t of tickers) { const recent = S.cmpReuse && S.index.find(h => h.ticker === t && h.status === "done" && Date.now() - h.createdAt < 14 * 864e5); if (recent) reuse.push(t); else fresh.push(t); }
+  if (!budgetOk(S.cmpMode, S.plan, fresh.length)) return;
+  let left = fresh.length; S.busy.compare = fresh.length ? `Running ${fresh.join(", ")} side by side${S.plan === "saver" ? " (Saver: usually within an hour)" : ""}…` : "Loading…"; renderCompare();
+  const runs = await Promise.all(tickers.map(async t => { if (reuse.includes(t)) { const h = S.index.find(x => x.ticker === t && x.status === "done"); return DB.getRun(h.id); }
+    const r = await runQuiet({ticker: t, mode: S.cmpMode}); left--; S.busy.compare = left ? `${left} still running…` : "Ranking…"; renderCompare(); return r; }));
+  const bad = runs.find(r => !r || r.status !== "done");
+  if (bad) { S.busy.compare = false; renderCompare(); toast(`${bad?.ticker || "A run"} didn't finish (${bad?.error || "stopped"}); comparison stopped.`, 7000); return; }
   S.busy.compare = "Ranking…"; renderCompare();
   try {
     const res = await F.compareJudge(runs, {engine: S.engine, settings: S.settings, apiKey: S.key, profile: S.profile});
@@ -120,7 +119,7 @@ function holdingsHtml() {
 function watchlistHtml() {
   const W = S.watchlist, due = W.filter(isDue);
   return `<div class="card"><p class="small muted">The app checks the watchlist each time it opens. For runs on a schedule while your computer is off, export watchlist.json to your GitHub repo — the included GitHub Action re-runs due tickers and opens an issue when an alert fires.</p>
-  ${due.length ? `<div class="warnbox"><b>${due.length} due for review:</b> ${due.map(w => esc(w.ticker)).join(", ")} <button class="btn small" type="button" id="wRunDue" ${S.running ? "disabled" : ""}>Run due now</button></div>` : ""}
+  ${due.length ? `<div class="warnbox"><b>${due.length} due for review:</b> ${due.map(w => esc(w.ticker)).join(", ")} ${S.busy.watch ? `<span class="small muted">${esc(S.busy.watch)}</span>` : `<button class="btn small" type="button" id="wRunDue">Run due now</button>`}</div>` : ""}
   ${(S.alertHits || []).length ? `<div class="warnbox bad"><b>Alerts triggered:</b>${S.alertHits.map(a => `<div>${esc(a.ticker)}: ${esc(a.text)}</div>`).join("")}</div>` : ""}
   <div class="tblwrap"><table class="dt edit"><thead><tr><th>Ticker</th><th>Cadence</th><th>Mode</th><th>Alerts</th><th>Last run</th><th>Verdict</th><th>Status</th><th></th></tr></thead><tbody>
   ${W.map((w, i) => { const last = S.index.find(h => h.ticker === w.ticker && h.status === "done");
@@ -210,7 +209,7 @@ function renderHistory() {
 function renderLab() {
   const E = S.evals;
   $("#viewLab").innerHTML = `<main class="wrap"><div class="sechead"><span class="lbl">Lab — evaluate prompt and model changes</span></div>
-  <form class="card" id="labForm"><p class="small muted">Run a fixed set of tickers after changing prompts, models or settings, then compare against an earlier benchmark: verdict flips, score shifts, contradictions, uncited claims, primary-source share, cost and time. The GitHub Action can run the same benchmark (workflow "eval").</p>
+  <form class="card" id="labForm"><p class="small muted">Run a fixed set of tickers after changing prompts, models or settings, then compare against an earlier benchmark: verdict flips, score shifts, contradictions, uncited claims, primary-source share, cost and time. Runs go side by side in the background on your current plan. The GitHub Action can run the same benchmark overnight at Batch prices (workflow "Benchmark (Lab)").</p>
     <div class="jrow"><input class="field grow" id="labTickers" value="${esc(S.labTickers || "AAPL, KO, XOM, PLTR, WTTR")}" aria-label="Benchmark tickers"><select class="field" id="labMode" aria-label="Mode">${["quick", "standard", "full"].map(m => `<option value="${m}">${A.MODES[m].label}</option>`).join("")}</select>
     <input class="field" id="labLabel" placeholder="Label, e.g. 'devil on other model'" aria-label="Label"><button class="btn primary" type="submit" ${S.running || S.busy.lab ? "disabled" : ""}>${S.busy.lab ? esc(S.busy.lab) : "Run benchmark"}</button></div></form>
   ${E.length ? `<div class="card"><h3 class="h3">Benchmarks</h3><ul class="disc">${E.map((e, i) => `<li><span class="num muted">${esc(new Date(e.at).toLocaleString())}</span> <b>${esc(e.label || "unlabeled")}</b> <span class="tag">${esc(e.promptVersion)} · ${esc(e.model)} · ${esc(e.mode)}</span> ${e.results.length} tickers <button class="del" type="button" data-edel="${i}" aria-label="Delete benchmark">×</button></li>`).join("")}</ul>
@@ -220,31 +219,29 @@ function renderLab() {
 function labDiffHtml(a, b) {
   const D = F.evalDiff(a, b); const sum = k => r => r.reduce((s, x) => s + (x[k] || 0), 0);
   const agg = (e, k) => sum(k)(e.results);
-  return `<div class="tblwrap"><table class="dt"><thead><tr><th>Ticker</th><th>Verdict A → B</th><th>Score Δ</th><th>Contradictions</th><th>Uncited</th><th>Primary share</th><th>Citations</th><th>Output tokens</th><th>Searches</th></tr></thead><tbody>
+  return `<div class="tblwrap"><table class="dt"><thead><tr><th>Ticker</th><th>Verdict A → B</th><th>Score Δ</th><th>Contradictions</th><th>Uncited</th><th>Primary share</th><th>Citations</th><th>Output tokens</th><th>Searches</th><th>Cost</th></tr></thead><tbody>
   ${D.map(d => `<tr><td><b>${esc(d.ticker)}</b></td><td>${esc(d.a.verdict || "–")} → <span style="color:${d.verdictChanged ? "var(--warn)" : "inherit"}">${esc(d.b.verdict || "–")}</span></td><td class="num">${U.isNum(d.scoreDelta) ? (d.scoreDelta > 0 ? "+" : "") + d.scoreDelta : "–"}</td>
-    <td class="num">${d.a.contradictions ?? "–"} → ${d.b.contradictions ?? "–"}</td><td class="num">${d.a.uncited ?? "–"} → ${d.b.uncited ?? "–"}</td><td class="num">${pct(d.a.primaryShare, 0)} → ${pct(d.b.primaryShare, 0)}</td><td class="num">${d.a.citations ?? "–"} → ${d.b.citations ?? "–"}</td><td class="num">${fmtK(d.a.outTok)} → ${fmtK(d.b.outTok)}</td><td class="num">${d.a.searches ?? "–"} → ${d.b.searches ?? "–"}</td></tr>`).join("")}
-  <tr><th>Total</th><td>${D.filter(d => d.verdictChanged).length} flips</td><td></td><td class="num">${agg(a, "contradictions")} → ${agg(b, "contradictions")}</td><td class="num">${agg(a, "uncited")} → ${agg(b, "uncited")}</td><td></td><td class="num">${agg(a, "citations")} → ${agg(b, "citations")}</td><td class="num">${fmtK(agg(a, "outTok"))} → ${fmtK(agg(b, "outTok"))}</td><td class="num">${agg(a, "searches")} → ${agg(b, "searches")}</td></tr></tbody></table></div>`;
+    <td class="num">${d.a.contradictions ?? "–"} → ${d.b.contradictions ?? "–"}</td><td class="num">${d.a.uncited ?? "–"} → ${d.b.uncited ?? "–"}</td><td class="num">${pct(d.a.primaryShare, 0)} → ${pct(d.b.primaryShare, 0)}</td><td class="num">${d.a.citations ?? "–"} → ${d.b.citations ?? "–"}</td><td class="num">${fmtK(d.a.outTok)} → ${fmtK(d.b.outTok)}</td><td class="num">${d.a.searches ?? "–"} → ${d.b.searches ?? "–"}</td><td class="num">${U.isNum(d.a.cost) ? "$" + d.a.cost.toFixed(2) : "–"} → ${U.isNum(d.b.cost) ? "$" + d.b.cost.toFixed(2) : "–"}</td></tr>`).join("")}
+  <tr><th>Total</th><td>${D.filter(d => d.verdictChanged).length} flips</td><td></td><td class="num">${agg(a, "contradictions")} → ${agg(b, "contradictions")}</td><td class="num">${agg(a, "uncited")} → ${agg(b, "uncited")}</td><td></td><td class="num">${agg(a, "citations")} → ${agg(b, "citations")}</td><td class="num">${fmtK(agg(a, "outTok"))} → ${fmtK(agg(b, "outTok"))}</td><td class="num">${agg(a, "searches")} → ${agg(b, "searches")}</td><td class="num">$${agg(a, "cost").toFixed(2)} → $${agg(b, "cost").toFixed(2)}</td></tr></tbody></table></div>`;
 }
 async function runLab() {
   const tickers = [...new Set($("#labTickers").value.split(/[\s,;]+/).map(U.normTicker).filter(U.validTicker))].slice(0, 10);
   if (!tickers.length || !canRunEngine()) return;
   S.labTickers = tickers.join(", ");
   const mode = $("#labMode").value, label = $("#labLabel").value.trim();
-  const ev = {at: Date.now(), label, mode, model: S.engine === "claude" ? "claude.ai" : S.settings.model, promptVersion: A.PROMPT_VERSION, results: []};
-  for (const t of tickers) {
-    S.busy.lab = `${t} (${ev.results.length + 1}/${tickers.length})…`; renderLab();
-    const run = await startRun({ticker: t, mode, quiet: true, noTrack: true});
-    if (!run) break;
-    ev.results.push(Object.assign(F.evalSummary(run), {runId: run.id}));
-    if (run.status !== "done") break;
-  }
+  if (!budgetOk(mode, S.plan, tickers.length)) return;
+  const ev = {at: Date.now(), label, mode, plan: S.engine === "claude" ? "" : S.plan, model: S.engine === "claude" ? "claude.ai" : (A.PLANS[S.plan]?.label || "") + " plan", promptVersion: A.PROMPT_VERSION, results: []};
+  let done = 0; S.busy.lab = `${tickers.length} tickers running side by side${S.plan === "saver" ? " (Saver: usually within an hour)" : ""}…`; renderLab();
+  const runs = await U.pmap(tickers, async t => { const r = await runQuiet({ticker: t, mode, noTrack: true}); done++; S.busy.lab = `${done}/${tickers.length} finished…`; if (S.view === "lab") renderLab(); return r; }, 5);
+  for (const run of runs) if (run && run.status === "done") ev.results.push(Object.assign(F.evalSummary(run), {runId: run.id}));
+  const failed = runs.filter(r => !r || r.status !== "done"); if (failed.length) toast(`${failed.length} benchmark run(s) didn't finish: ${failed.map(r => r?.ticker).join(", ")}`, 7000);
   S.evals.unshift(ev); persist.evals(); S.busy.lab = false; S.view = "lab"; updateNav(); renderLab();
 }
 
 /* ---------------- Settings ---------------- */
 function renderSettings() {
   const st = S.settings, p = S.profile;
-  const tabs = [["profile", "Profile"], ["engine", "Engine"], ["data", "Data"], ["seats", "Seats"], ["github", "GitHub"], ["storage", "Storage"]];
+  const tabs = [["profile", "Profile"], ["engine", "Cost & models"], ["data", "Data"], ["seats", "Seats"], ["github", "GitHub"], ["storage", "Appearance & storage"]];
   const sel = (id, opts, val) => `<select class="field" id="${id}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(val) === String(v) ? "selected" : ""}>${esc(l)}</option>`; }).join("")}</select>`;
   const f = (id, label, ctl, wide) => `<div class="f ${wide ? "wide" : ""}"><label class="lbl" for="${id}">${label}</label>${ctl}</div>`;
   const inp = (id, val, ph, type) => `<input class="field" id="${id}" value="${esc(val ?? "")}" placeholder="${esc(ph || "")}" ${type ? `type="${type}"` : ""} spellcheck="false">`;
@@ -261,39 +258,41 @@ function renderSettings() {
     ${f("pOther", "Other criteria", inp("pOther", p.other, "no banks, ESG, min FCF yield 5%"), true)}
     ${f("pExp", "Your expertise (Member's seat)", `<textarea class="field" id="pExp" rows="3" placeholder="e.g. 20 years in Permian produced-water operations; know disposal economics, RRC permitting and operator recycling decisions">${esc(p.expertise)}</textarea>`, true)}
     </div><div class="formfoot"><button class="btn primary" type="submit">✓ Save profile</button></div></form>`;
-  if (S.setTab === "engine") body = `<form class="card" id="engineForm"><div class="pgrid">
-    ${f("sModel", "Model (all seats)", inp("sModel", st.model))}
-    ${f("sRetr", "Retrieval seats model (optional economy)", inp("sRetr", st.retrievalModel, "blank = same model"))}
-    ${f("sDevil", "Devil's Advocate model (optional)", inp("sDevil", st.devilModel, "blank = same model"))}
+  if (S.setTab === "engine") { const spent = Cost.spentThisMonth();
+    body = `<form class="card" id="costForm"><p class="small">Three choices decide what you spend. Everything else is automatic: Scouts do the web research once for the whole committee, judges (CIO, Devil's Advocate, Data Hunter) use Opus 5.5 and analysts Sonnet 5.5, later seats read summaries, documents are digested once, and research from the last few days is reused.</p>
+    <div class="pgrid">
+    ${f("sPlan", "Default plan", sel("sPlan", Object.entries(A.PLANS).map(([k, p]) => [k, `${p.label} — ${p.short}`]), st.plan || "saver"), true)}
+    ${f("sMonthly", "Monthly budget ($)", inp("sMonthly", st.monthlyBudget, "blank = no limit"))}
+    ${f("sCap", "Stop a run above ($)", inp("sCap", st.runCap, "blank = no cap"))}
+    <div class="f"><span class="lbl">Spent this month</span><b class="num" style="font-size:20px">$${spent.toFixed(2)}</b></div>
+    </div>
+    <p class="small muted">${Object.values(A.PLANS).map(p => `<b>${esc(p.label)}</b>: ${esc(p.note)}`).join("<br>")}</p>
+    <details class="adv"><summary class="lbl">Advanced (you normally don't need these)</summary><div class="pgrid">
+    ${f("sJudge", "Judge model", inp("sJudge", st.judgeModel))}
+    ${f("sAnalyst", "Analyst model (Saver, Balanced)", inp("sAnalyst", st.analystModel))}
+    ${f("sHelper", "Helper model (digests)", inp("sHelper", st.helperModel))}
     ${f("sSearch", "Web search depth", sel("sSearch", [["0", "Off"], ["0.5", "Light"], ["1", "Standard"], ["1.5", "Deep"]], st.searchDepth))}
-    ${f("sTool", "Search tool version", inp("sTool", st.toolType))}
     ${f("sMax", "Max tokens per seat", inp("sMax", st.maxTokens, "", "number"))}
-    ${f("sCache", "Prompt caching", sel("sCache", [["true", "On"], ["false", "Off"]], st.promptCaching))}
-    ${f("sPar", "Parallel seats within a stage", sel("sPar", [["true", "On"], ["false", "Off (sequential)"]], st.parallel))}
-    ${f("sBudget", "Budget cap per run ($)", inp("sBudget", st.budget, "blank = none"))}
-    ${f("sPin", "Input $/M tokens", inp("sPin", st.priceIn, "for cost estimates"))}
-    ${f("sPout", "Output $/M tokens", inp("sPout", st.priceOut))}
-    ${f("sPsearch", "$ per 1,000 searches", inp("sPsearch", st.priceSearch))}
+    ${f("sTool", "Search tool version", inp("sTool", st.toolType))}
+    ${f("sMode", "Default mode", sel("sMode", Object.keys(A.MODES).map(k => [k, A.MODES[k].label]), st.defaultMode))}
     ${f("sDR", "Discount rate % (reverse DCF)", inp("sDR", st.discountRate))}
     ${f("sTG", "Terminal growth %", inp("sTG", st.terminalGrowth))}
-    ${f("sMode", "Default mode", sel("sMode", Object.keys(A.MODES).map(k => [k, A.MODES[k].label]), st.defaultMode))}
-    </div><p class="small muted">The budget cap needs the three prices; take them from anthropic.com/pricing. Cached input is billed at a fraction of normal input and is counted that way here.</p>
-    <div class="formfoot"><button class="btn primary" type="submit">✓ Save engine settings</button></div></form>`;
+    </div></details>
+    <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button></div></form>`; }
   if (S.setTab === "data") body = `<form class="card" id="dataForm"><p class="small">The <b>data gateway</b> is a tiny Cloudflare Worker (in the repo's <code>worker/</code> folder) that fetches SEC EDGAR and price data for the browser, which those sites block directly. It can also hold your Anthropic key so the key never sits in the browser.</p>
     ${S.inClaude ? `<p class="warnline">Inside claude.ai the page can't reach a gateway. These settings apply to the standalone version.</p>` : ""}
     <div class="pgrid">${f("gUrl", "Gateway URL", inp("gUrl", st.gateway, "https://aic-gateway.yourname.workers.dev"), true)}
     ${f("gTok", "Gateway access token", inp("gTok", st.gatewayToken, "the ACCESS_TOKEN you set on the worker", "password"))}
     ${f("gAnth", "Send Anthropic calls through the gateway", sel("gAnth", [["false", "No — use my key in this browser"], ["true", "Yes — the gateway holds the key"]], st.gatewayAnthropic))}</div>
     <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button><button class="btn" type="button" id="gTest">Test connection</button><span class="small" id="gTestOut"></span></div></form>`;
-  if (S.setTab === "seats") body = `<form class="card" id="seatsForm"><p class="small muted">Choose the seats for <b>Custom</b> mode, and switch off web search per seat to save cost.</p>
-    <div class="tblwrap"><table class="dt"><thead><tr><th>Seat</th><th>Stage</th><th>In Custom mode</th><th>Web search</th></tr></thead><tbody>${A.SEATS.map(s => `<tr><td style="color:${s.color}"><b>${esc(s.name)}</b> <span class="muted small">${esc(s.role)}</span></td><td class="num">${s.stage}</td>
-      <td><input type="checkbox" data-cs="${s.id}" ${(st.customSeats || A.MODES.standard.seats).includes(s.id) ? "checked" : ""} ${s.id === "desk" ? "disabled checked" : ""} aria-label="Include ${esc(s.name)}"></td>
-      <td>${s.search ? `<input type="checkbox" data-ns="${s.id}" ${(st.noSearchSeats || []).includes(s.id) ? "" : "checked"} aria-label="Web search for ${esc(s.name)}">` : "–"}</td></tr>`).join("")}</tbody></table></div>
+  if (S.setTab === "seats") body = `<form class="card" id="seatsForm"><p class="small muted">Choose the seats for <b>Custom</b> mode. (On Saver and Balanced the three Scouts are added automatically and do the web research for everyone.)</p>
+    <div class="tblwrap"><table class="dt"><thead><tr><th>Seat</th><th>Stage</th><th>In Custom mode</th></tr></thead><tbody>${A.SEATS.map(s => `<tr><td style="color:${s.color}"><b>${esc(s.name)}</b> <span class="muted small">${esc(s.role)}</span></td><td class="num">${s.stage}</td>
+      <td><input type="checkbox" data-cs="${s.id}" ${(st.customSeats || A.MODES.standard.seats).includes(s.id) ? "checked" : ""} ${s.id === "desk" ? "disabled checked" : ""} aria-label="Include ${esc(s.name)}"></td></tr>`).join("")}</tbody></table></div>
     <div class="formfoot"><button class="btn primary" type="submit">✓ Save seats</button></div></form>`;
   if (S.setTab === "github") body = `<form class="card" id="ghForm"><p class="small">Point the app at your GitHub copy of this project to import results produced by the scheduled GitHub Action. The repo must be public for the app to read it, or use Import JSON on the History page.</p>
     <div class="pgrid">${f("ghO", "Owner", inp("ghO", st.ghOwner, "your-github-name"))}${f("ghR", "Repository", inp("ghR", st.ghRepo, "ai-investment-committee"))}${f("ghB", "Branch", inp("ghB", st.ghBranch, "main"))}</div>
     <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button></div></form>`;
-  if (S.setTab === "storage") body = `<div class="card"><p class="small">Runs are stored in this browser (IndexedDB); profile, holdings, journal and the track record in local storage. Nothing is sent anywhere except to Anthropic and your own gateway.</p>
+  if (S.setTab === "storage") body = `<div class="card"><div class="pgrid">${f("themeSel", "Appearance", sel("themeSel", [["dark", "Dark"], ["light", "Light"], ["system", "Match my device"]], LS.get("theme", "dark")))}</div></div><div class="card"><p class="small">Runs are stored in this browser (IndexedDB); profile, holdings, journal and the track record in local storage. Nothing is sent anywhere except to Anthropic and your own gateway.</p>
     <div class="row-actions"><button class="btn small" type="button" id="exportAll">⇩ Export everything (JSON)</button><label class="btn small" for="importAll">Import backup</label><input type="file" id="importAll" accept="application/json" hidden><button class="btn small" type="button" id="clearCache">Clear data caches</button></div></div>`;
   $("#viewSettings").innerHTML = `<main class="wrap"><div class="tabbar" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-stab="${k}" aria-selected="${S.setTab === k}">${l}</button>`).join("")}</div>${body}<p class="disclaimer">App v${A.VERSION} · prompts ${A.PROMPT_VERSION}</p></main>`;
 }

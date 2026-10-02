@@ -4,7 +4,8 @@
 const path = require("path"), fs = require("fs");
 const SCR = process.argv[2], OUT = process.argv[3] || path.join(__dirname, "shots");
 const {chromium} = require(process.env.PW || "/opt/npm-tools/node_modules/playwright");
-const {fixtureFor, anthropicSSE} = require("./mock");
+const {fixtureFor, anthropicSSE, anthropicMessage, batchMock} = require("./mock");
+const BM = batchMock(1);
 fs.mkdirSync(OUT, {recursive: true});
 const strip = h => String(h).replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
 const libs = {"pdf.min.js": "pdfjs-dist/build/pdf.min.js", "pdf.worker.min.js": "pdfjs-dist/build/pdf.worker.min.js", "xlsx.full.min.js": "xlsx/dist/xlsx.full.min.js", "mammoth.browser.min.js": "mammoth/mammoth.browser.min.js"};
@@ -23,16 +24,23 @@ async function makeDocs() {
   const docs = await makeDocs();
   const browser = await chromium.launch();
   const ctx = await browser.newContext({viewport: {width: 1400, height: 950}, acceptDownloads: true});
-  await ctx.addInitScript(() => {
+  await ctx.addInitScript(theme => {
+    if (theme) localStorage.setItem("aic6.theme", JSON.stringify(theme));
     if (!localStorage.getItem("aic6.settings")) localStorage.setItem("aic6.settings", JSON.stringify({gateway: "https://gw.test", gatewayToken: "t0k", priceIn: "5", priceOut: "25", priceSearch: "10"}));
     if (!localStorage.getItem("aic6.profile")) localStorage.setItem("aic6.profile", JSON.stringify({size: "250000", riskPerTrade: "1", expertise: "Permian produced-water operations"}));
-  });
+  }, process.env.THEME || "");
   const p = await ctx.newPage();
   const errs = []; p.on("pageerror", e => errs.push("pageerror: " + e.message)); p.on("console", m => { if (m.type() === "error" && !/ERR_FAILED|net::/.test(m.text())) errs.push(m.text()); });
   let api = 0, gw = 0;
   await p.route("https://fonts.googleapis.com/**", r => r.abort());
   await p.route("https://cdnjs.cloudflare.com/**", r => { const f = r.request().url().split("/").pop(); const loc = libs[f]; return loc ? r.fulfill({path: path.join(SCR, "node_modules", loc), contentType: "application/javascript"}) : r.abort(); });
-  await p.route("https://api.anthropic.com/**", async r => { api++; const body = JSON.parse(r.request().postData()); await r.fulfill({status: 200, headers: {"content-type": "text/event-stream", "access-control-allow-origin": "*"}, body: anthropicSSE(body)}); });
+  const H = {"access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS"};
+  await p.route("https://api.anthropic.com/**", async r => { const req = r.request(); if (req.method() === "OPTIONS") return r.fulfill({status: 204, headers: H}); api++;
+    const u = new URL(req.url());
+    if (/\/v1\/messages\/batches/.test(u.pathname)) { const x = BM.handle(req.method(), u.pathname, req.postData()); return r.fulfill({status: x.status, headers: {...H, "content-type": x.json ? "application/json" : "application/x-jsonl"}, body: x.json ? JSON.stringify(x.json) : x.text}); }
+    const body = JSON.parse(req.postData());
+    if (!body.stream) return r.fulfill({status: 200, headers: {...H, "content-type": "application/json"}, body: JSON.stringify(anthropicMessage(body))});
+    await r.fulfill({status: 200, headers: {...H, "content-type": "text/event-stream"}, body: anthropicSSE(body)}); });
   await p.route("https://gw.test/**", async r => {
     gw++; const u = new URL(r.request().url()); const target = u.searchParams.get("url"); const fx = fixtureFor(target);
     if (r.request().headers()["x-aic-token"] !== "t0k") return r.fulfill({status: 401, body: "bad token"});
@@ -43,7 +51,9 @@ async function makeDocs() {
   const shot = async (n, full) => p.screenshot({path: path.join(OUT, n + ".png"), fullPage: !!full});
   await p.goto("file://" + path.join(__dirname, "../index.html"));
   await p.waitForTimeout(500);
+  await p.evaluate(() => { const s = AIC.util.sleep; AIC.util.sleep = ms => s(Math.min(ms, 300)); });
   await shot("01-start");
+  const planUi = await p.evaluate(() => ({plans: document.querySelectorAll(".plan-opt").length, checked: document.querySelector('.plan-opt[aria-checked="true"]')?.dataset.plan, est: document.querySelector("#estLine").textContent}));
   await p.fill("#keyIn", "sk-ant-test"); await p.click("#keyForm button[type=submit]");
   await p.click("#memberBox summary");
   await p.fill("#memberNote", "Two large Delaware operators move to recycled water next year; Reeves County disposal permits are being cut after the earthquakes.");
@@ -51,13 +61,14 @@ async function makeDocs() {
   await p.waitForFunction(() => document.querySelectorAll(".fchip").length === 2, null, {timeout: 15000});
   await p.selectOption("#modeSel", "full");
   await p.fill("#ticker", "wttr"); await p.click("#runBtn");
-  await p.waitForTimeout(400); await shot("02-running");
-  await p.waitForFunction(() => /DONE/.test(document.querySelector("#progStep").textContent), null, {timeout: 60000});
+  await p.waitForFunction(() => document.querySelector('.seat[data-st="waiting"]'), null, {timeout: 30000}); await shot("02-running");
+  await p.waitForFunction(() => /DONE/.test(document.querySelector("#progStep").textContent), null, {timeout: 120000});
   await p.waitForTimeout(800);
   await p.evaluate(() => scrollTo(0, 0)); await shot("03-done-top");
   await p.evaluate(() => document.querySelector("#results").scrollIntoView()); await p.waitForTimeout(200); await shot("04-results");
   await shot("05-full", true);
-  for (const t of ["desk", "chart", "evidence", "debate"]) { await p.click(`[data-tab="${t}"]`); await p.waitForTimeout(250); await p.evaluate(() => document.querySelector("#tabSec").scrollIntoView()); await shot("06-tab-" + t); }
+  const saverRun = await p.evaluate(() => ({plan: S.run.plan, batch: S.run.batch, cost: S.run.cost, batchSeats: S.run.seats.filter(id => S.run.reports[id].usage?.batch).length}));
+  for (const t of ["desk", "chart", "evidence", "debate", "cost"]) { await p.click(`[data-tab="${t}"]`); await p.waitForTimeout(250); await p.evaluate(() => document.querySelector("#tabSec").scrollIntoView()); await shot("06-tab-" + t); }
   await p.click('[data-tab="chart"]'); const box = await p.$(".pchart .hit"); const bb = await box.boundingBox(); await p.mouse.move(bb.x + bb.width * 0.7, bb.y + 100); await p.waitForTimeout(150); await shot("07-chart-hover");
   await p.selectOption("#askAgent", "hunter"); await p.fill("#askQ", "Why is intrinsic value above the price?"); await p.click("#askBtn"); await p.waitForTimeout(800); await shot("08-qa");
   await p.click('[data-tab="minutes"]');
@@ -71,6 +82,12 @@ async function makeDocs() {
   // Compare (XOM is not in the SEC fixture map: exercises the partial Data Desk path)
   await p.click('.nav [data-view="compare"]'); await p.fill("#cmpTickers", "WTTR, XOM"); await p.click("#cmpForm button[type=submit]");
   await p.waitForFunction(() => document.querySelector(".dt.cmp"), null, {timeout: 60000}); await p.waitForTimeout(300); await shot("10-compare", true);
+  // Screen mode on Balanced
+  await p.click('.nav [data-view="analysis"]'); await p.click('[data-plan="balanced"]'); await p.selectOption("#modeSel", "screen"); await p.fill("#ticker", "KO"); await p.click("#runBtn");
+  await p.waitForFunction(() => /DONE/.test(document.querySelector("#progStep").textContent) && S.run.ticker === "KO", null, {timeout: 60000}); await p.waitForTimeout(300);
+  await p.evaluate(() => document.querySelector("#results").scrollIntoView()); await shot("10b-screen");
+  const screenRun = await p.evaluate(() => ({plan: S.run.plan, call: S.run.reports.screen?.data?.call, seats: S.run.seats}));
+  await p.selectOption("#modeSel", "standard");
   // Portfolio
   await p.click('.nav [data-view="portfolio"]'); await p.click("#hAdd"); await p.fill('[data-hf="ticker"]', "XOM"); await p.fill('[data-hf="shares"]', "100"); await p.fill('[data-hf="cost"]', "105"); await p.click("#hSave"); await p.click("#hPrices"); await p.waitForTimeout(500); await shot("11-holdings");
   await p.click('[data-ptab="watchlist"]'); await p.click("#wCheck"); await p.waitForTimeout(500); await shot("12-watchlist");
@@ -87,8 +104,10 @@ async function makeDocs() {
   await p.click("#labCmp"); await p.waitForTimeout(200); await shot("16-lab", true);
   // Settings + history
   await p.click('.nav [data-view="settings"]'); for (const t of ["profile", "engine", "data", "seats"]) { await p.click(`[data-stab="${t}"]`); await p.waitForTimeout(100); }
+  await p.click('[data-stab="engine"]'); await p.click("details.adv summary"); await shot("17a-settings-cost", true);
   await p.click('[data-stab="data"]'); await p.click("#gTest"); await p.waitForTimeout(400); await shot("17-settings-data");
   await p.click('.nav [data-view="history"]'); await shot("18-history");
+  const preReload = await p.evaluate(() => ({n: S.index.length, ls: Object.keys(localStorage).reduce((a, k) => a + localStorage.getItem(k).length, 0)}));
   // reload persistence
   await p.reload(); await p.waitForTimeout(800); const persisted = await p.evaluate(() => ({hist: document.querySelector("#navHistory").textContent, verdict: document.querySelector("#headChip").textContent}));
   // mobile
@@ -96,6 +115,6 @@ async function makeDocs() {
   await p.evaluate(() => document.querySelector("#results").scrollIntoView()); await shot("20-mobile-results");
   const hscroll = await p.evaluate(() => document.documentElement.scrollWidth);
   const csv = fs.readFileSync(csvPath, "utf8");
-  console.log(JSON.stringify({api, gw, persisted, hscroll, csvRows: csv.split("\n").length, ics: fs.readFileSync(path.join(OUT, "cal.ics"), "utf8").split("BEGIN:VEVENT").length - 1, watchlist: JSON.parse(fs.readFileSync(path.join(OUT, "watchlist.json"))).tickers, errors: errs}, null, 1));
+  console.log(JSON.stringify({api, gw, preReload, batches: BM.stats, planUi, saverRun, screenRun, persisted, hscroll, csvRows: csv.split("\n").length, ics: fs.readFileSync(path.join(OUT, "cal.ics"), "utf8").split("BEGIN:VEVENT").length - 1, watchlist: JSON.parse(fs.readFileSync(path.join(OUT, "watchlist.json"))).tickers, errors: errs}, null, 1));
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

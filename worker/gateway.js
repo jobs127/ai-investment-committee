@@ -5,7 +5,8 @@
    Routes
      GET  /                      health check
      GET  /fetch?url=<https url>[&text=1][&max=N]   allow-listed hosts only; text=1 strips HTML
-     POST /anthropic/v1/messages  forwards to Anthropic with ANTHROPIC_API_KEY (if set)
+     GET|POST /anthropic/v1/...   forwards to Anthropic (Messages and Message Batches) using ANTHROPIC_API_KEY if set,
+                                  otherwise the x-api-key header the app sends
 
    Settings (Cloudflare dashboard → your worker → Settings → Variables and Secrets)
      ACCESS_TOKEN     (secret, recommended) the app must send this in the x-aic-token header
@@ -31,7 +32,7 @@ export default {
   async fetch(req, env, ctx) {
     const origin = env.ALLOWED_ORIGIN || "*";
     const cors = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type, x-aic-token, anthropic-version, anthropic-beta", "Access-Control-Max-Age": "86400", "Vary": "Origin"};
+      "Access-Control-Allow-Headers": "content-type, x-aic-token, x-api-key, anthropic-version, anthropic-beta, anthropic-dangerous-direct-browser-access", "Access-Control-Max-Age": "86400", "Vary": "Origin"};
     const reply = (body, status = 200, extra = {}) => new Response(body, {status, headers: {...cors, ...extra}});
     if (req.method === "OPTIONS") return reply(null, 204);
     const url = new URL(req.url);
@@ -58,10 +59,11 @@ export default {
       return res;
     }
 
-    if (url.pathname.startsWith("/anthropic/") && req.method === "POST") {
-      if (!env.ANTHROPIC_API_KEY) return reply("The gateway has no ANTHROPIC_API_KEY secret.", 501);
-      const up = await fetch("https://api.anthropic.com" + url.pathname.slice("/anthropic".length), {method: "POST", body: req.body,
-        headers: {"content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": req.headers.get("anthropic-version") || "2023-06-01",
+    if (url.pathname.startsWith("/anthropic/v1/") && (req.method === "POST" || req.method === "GET")) {
+      const key = env.ANTHROPIC_API_KEY || req.headers.get("x-api-key");
+      if (!key) return reply("No Anthropic key: set the ANTHROPIC_API_KEY secret on the worker, or send x-api-key.", 401);
+      const up = await fetch("https://api.anthropic.com" + url.pathname.slice("/anthropic".length) + url.search, {method: req.method, body: req.method === "POST" ? req.body : undefined,
+        headers: {"content-type": "application/json", "x-api-key": key, "anthropic-version": req.headers.get("anthropic-version") || "2023-06-01",
           ...(req.headers.get("anthropic-beta") ? {"anthropic-beta": req.headers.get("anthropic-beta")} : {})}});
       const h = new Headers(up.headers); Object.entries(cors).forEach(([k, v]) => h.set(k, v));
       return new Response(up.body, {status: up.status, headers: h});

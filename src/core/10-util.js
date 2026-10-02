@@ -91,12 +91,14 @@ U.xmlOne = (xml, tag) => { const a = U.xmlAll(xml, tag); return a.length ? a[0] 
 U.xmlVal = (xml, path) => { let cur = xml; for (const t of path.split("/")) { cur = U.xmlOne(cur, t); if (!cur) return ""; } return cur.replace(/<[^>]+>/g, "").trim(); };
 
 /* cost */
-U.costOf = function (usage, st) {
-  if (!usage || st.priceIn === "" || st.priceOut === "" || st.priceIn == null || st.priceOut == null) return null;
-  const inTok = (usage.in || 0) + (usage.cacheWrite || 0) * 1.25 + (usage.cacheRead || 0) * 0.1;
-  return inTok / 1e6 * +st.priceIn + (usage.out || 0) / 1e6 * +st.priceOut + (st.priceSearch !== "" && st.priceSearch != null ? (usage.searches || 0) / 1000 * +st.priceSearch : 0);
+/* cost of one model call; usage = {in, out, cacheRead, cacheWrite, searches}; batch halves token prices */
+U.usageCost = function (usage, model, batch) {
+  if (!usage) return 0;
+  const p = AIC.priceFor(model), k = batch ? 0.5 : 1;
+  return ((usage.in || 0) * p.in + (usage.out || 0) * p.out + (usage.cacheWrite || 0) * p.cw + (usage.cacheRead || 0) * p.cr) / 1e6 * k + (usage.searches || 0) * AIC.SEARCH_PRICE;
 };
-U.addUsage = (a, b) => { if (!b) return a; a = a || {in:0, out:0, searches:0, cacheRead:0, cacheWrite:0}; for (const k of ["in","out","searches","cacheRead","cacheWrite"]) a[k] = (a[k] || 0) + (b[k] || 0); return a; };
+U.costOf = usage => usage && U.isNum(usage.cost) ? usage.cost : null;
+U.addUsage = (a, b) => { if (!b) return a; a = a || {in:0, out:0, searches:0, cacheRead:0, cacheWrite:0, cost:0}; for (const k of ["in","out","searches","cacheRead","cacheWrite","cost"]) a[k] = (a[k] || 0) + (b[k] || 0); return a; };
 
 U.verdictClass = v => { v = String(v || "").toUpperCase(); if (AIC.BULLISH.some(x => v.startsWith(x))) return "bull"; if (AIC.BEARISH.some(x => v.startsWith(x))) return "bear"; if (v.startsWith("HOLD")) return "hold"; return "none"; };
 })(typeof globalThis !== "undefined" ? globalThis : window);

@@ -39,9 +39,9 @@ F.SITUATIONS = ["Neglected / low analyst coverage","Inflection: margins or growt
 F.ideaHunt = async function ({focus, situations, cap, engine, settings, apiKey, signal, onText, onSearch, member}) {
   const task = `You are the fund's idea hunter. Find up to 8 listed companies that conventional screens are likely to miss or misjudge, in these situations: ${(situations && situations.length ? situations : F.SITUATIONS).join("; ")}.
 ${focus ? "Focus: " + focus + "." : ""} ${cap ? "Market-cap range: " + cap + "." : ""} ${member ? "Member expertise to lean on: " + member + "." : ""}
-For each: ticker, name, the situation, why it is overlooked or mis-screened, the leading signal that suggests the puck is moving, a dated catalyst if any, and the key risk. Prefer evidence from primary sources (filings, permits, contracts, insider Form 4s, 13Ds). Avoid mega-caps and crowded names. Write a short Markdown list, then call submit_report with the ideas.`;
-  return E.call({engine, settings, apiKey, model: settings.model, system: `Today is ${U.longDate()}. You find investment ideas the crowd has not priced yet. Be specific and verifiable. Never invent tickers.`,
-    blocks: [], task, schemaKey: "ideas", unified: false, maxUses: engine === "api" && +settings.searchDepth ? Math.max(4, Math.round(10 * settings.searchDepth)) : 0, signal, onText, onSearch});
+For each: ticker, name, the situation, why it is overlooked or mis-screened, the leading signal that suggests the puck is moving, a dated catalyst if any, and the key risk. Prefer evidence from primary sources (filings, permits, contracts, insider Form 4s, 13Ds). Avoid mega-caps and crowded names. Write a short Markdown list, then the JSON block.`;
+  return E.call({engine, settings, apiKey, model: settings.plan === "max" ? (settings.judgeModel || settings.model) : (settings.analystModel || settings.model), system: `Today is ${U.longDate()}. You find investment ideas the crowd has not priced yet. Be specific and verifiable. Never invent tickers.`,
+    blocks: [], task, schemaKey: "ideas", maxUses: engine === "api" && +settings.searchDepth ? Math.max(4, Math.round(10 * settings.searchDepth)) : 0, signal, onText, onSearch});
 };
 
 /* ---------- Compare ---------- */
@@ -54,8 +54,8 @@ F.compareRow = function (run) {
 F.compareJudge = async function (runs, {engine, settings, apiKey, signal, onText, profile}) {
   const rows = runs.map(F.compareRow);
   const brief = runs.map(r => `## ${r.ticker}\nVerdict ${r.cio?.verdict} · overall ${r.cio?.overall} · quality ${r.cio?.quality_score} · price ${r.cio?.price_score} · expected return ${U.pct(r.evm?.expReturn)}\nThesis: ${r.cio?.thesis || ""}\nVariant view: ${r.cio?.variant_view || ""}\nBear thesis killer: ${r.reports.bear?.data?.thesis_killer || ""}\nKey metrics: ${JSON.stringify(F.compareRow(r))}`).join("\n\n");
-  const task = `Rank these candidates for the investor profile below, as the fund's CIO allocating one new position. Weigh expected return, quality, the strength of the variant view, catalyst timing and risk. Then call submit_report with the ranking.\nInvestor profile: ${P.profileText(profile)}\n\n${brief}`;
-  const out = await E.call({engine, settings, apiKey, model: settings.model, system: `Today is ${U.longDate()}. You are the CIO comparing committee outputs.`, blocks: [], task, schemaKey: "compare", unified: false, maxUses: 0, signal, onText});
+  const task = `Rank these candidates for the investor profile below, as the fund's CIO allocating one new position. Weigh expected return, quality, the strength of the variant view, catalyst timing and risk. Then give the JSON block.\nInvestor profile: ${P.profileText(profile)}\n\n${brief}`;
+  const out = await E.call({engine, settings, apiKey, model: settings.judgeModel || settings.model, system: `Today is ${U.longDate()}. You are the CIO comparing committee outputs.`, blocks: [], task, schemaKey: "compare", maxUses: 0, signal, onText});
   return {rows, text: out.text, ranking: out.data?.ranking || [], usage: out.usage};
 };
 
@@ -73,8 +73,8 @@ Thesis: ${th.thesis}
 Variant view: ${th.variant}
 Kill criteria:\n${th.kill.map((k, i) => `${i + 1}. ${k.criterion}`).join("\n")}
 Catalysts:\n${th.catalysts.map(c => `- ${c.event} (${c.date})`).join("\n")}
-For each kill criterion, give a status (not_triggered, watch or triggered) with evidence. Give an update on each catalyst. Give an overall status: intact, weakening or broken. Write a short Markdown summary, then call submit_report.`;
-  return E.call({engine, settings, apiKey, model: settings.model, system: `Today is ${U.longDate()}. You monitor theses for a fund. Be factual and cite sources.`, blocks: [], task, schemaKey: "thesis", unified: false,
+For each kill criterion, give a status (not_triggered, watch or triggered) with evidence. Give an update on each catalyst. Give an overall status: intact, weakening or broken. Write a short Markdown summary, then the JSON block.`;
+  return E.call({engine, settings, apiKey, model: settings.plan === "max" ? (settings.judgeModel || settings.model) : (settings.analystModel || settings.model), system: `Today is ${U.longDate()}. You monitor theses for a fund. Be factual and cite sources.`, blocks: [], task, schemaKey: "thesis",
     maxUses: engine === "api" && +settings.searchDepth ? 4 : 0, signal, onText});
 };
 
@@ -119,7 +119,7 @@ F.evalSummary = function (run) {
   return {ticker: run.ticker, verdict: run.cio?.verdict, overall: run.cio?.overall, quality: run.cio?.quality_score, priceScore: run.cio?.price_score,
     expReturn: run.evm?.expReturn, contradictions: L.contradictions.length, uncited: Object.values(L.uncited).reduce((a, b) => a + b, 0), claims: L.claims.length,
     primaryShare: L.primaryShare, citations: cites, words, inTok: u?.in || 0, outTok: u?.out || 0, searches: u?.searches || 0,
-    ms: Object.values(run.reports).reduce((s, r) => s + (r.ms || 0), 0), consistencyFlags: (run.consistency || []).length, status: run.status};
+    cost: run.cost ?? (u ? u.cost : null), plan: run.plan, ms: Object.values(run.reports).reduce((s, r) => s + (r.ms || 0), 0), consistencyFlags: (run.consistency || []).length, status: run.status};
 };
 F.evalDiff = function (a, b) {
   const tick = [...new Set(a.results.map(r => r.ticker).concat(b.results.map(r => r.ticker)))];

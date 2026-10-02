@@ -105,7 +105,7 @@ function exportAlerts(r) {
 }
 function exportWatchlist() {
   const data = {app: "ai-investment-committee", version: A.VERSION, generated: new Date().toISOString(), profile: S.profile,
-    settings: {model: S.settings.model, searchDepth: S.settings.searchDepth, discountRate: S.settings.discountRate, terminalGrowth: S.settings.terminalGrowth},
+    settings: {plan: S.settings.plan || S.plan, judgeModel: S.settings.judgeModel, analystModel: S.settings.analystModel, runCap: S.settings.runCap, searchDepth: S.settings.searchDepth, discountRate: S.settings.discountRate, terminalGrowth: S.settings.terminalGrowth},
     tickers: S.watchlist.map(w => ({ticker: w.ticker, cadence: w.cadence, mode: w.mode, alerts: w.alerts || []}))};
   saveFile("watchlist.json", JSON.stringify(data, null, 2), "application/json");
 }

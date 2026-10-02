@@ -5,11 +5,20 @@ function canRunEngine() {
   if (!S.engine || S.engine === "none") { toast("No engine available in this view."); return false; }
   return true;
 }
+/* hooks shared by foreground and background runs */
+function baseHooks() {
+  return {settings: S.settings, apiKey: S.key, defer: false, calibrationNote: S.calNote,
+    holdingsInfo: async r => holdingsInfo(r), save: async r => saveRun(r),
+    findRecent: async (ticker, {need, maxAgeH, excludeId}) => {
+      const hits = S.index.filter(h => h.ticker === ticker && h.id !== excludeId && Date.now() - h.createdAt < maxAgeH * 3600e3);
+      for (const h of hits) { const r = S.run?.id === h.id ? S.run : await DB.getRun(h.id); if (!r) continue;
+        if (need === "desk" ? r.factsheet?.status === "ok" : r.reports[need]?.status === "done" && !r.reports[need].reused) return r; }
+      return null; },
+    digestCache: {get: k => A.cacheGet(k), set: (k, v) => A.cacheSet(k, v, 30 * 864e5)}};
+}
 function hooksFor(run, t0) {
-  return {settings: S.settings, apiKey: S.key, signal: S.ctl.signal,
-    calibrationNote: S.calNote,
-    holdingsInfo: async r => holdingsInfo(r),
-    onUpdate: (rr, id, kind) => { if (rr !== S.run) return; if (kind === "stream") queueStream(id); else { renderBoard(); if (S.tab === "minutes") { if (id && !document.getElementById("rep-" + id)) renderTabs(); else if (id) renderRepBody(id); } renderProgress(t0); if (!id) { renderResults(); renderTabs(); } } }};
+  return Object.assign(baseHooks(), {signal: S.ctl.signal,
+    onUpdate: (rr, id, kind) => { if (rr !== S.run) return; if (kind === "stream") queueStream(id); else { renderBoard(); if (S.tab === "minutes") { if (id && !document.getElementById("rep-" + id)) renderTabs(); else if (id) renderRepBody(id); } renderProgress(t0); if (!id) { renderResults(); renderTabs(); } } }});
 }
 let streamQ = new Set(), streamT = 0;
 function queueStream(id) { streamQ.add(id); if (!streamT) streamT = setTimeout(() => { streamT = 0; for (const k of streamQ) if (S.tab === "minutes") { if (!document.getElementById("body-" + k)) renderTabs(); else renderRepBody(k); } streamQ.clear(); renderBoard(); }, 140); }
@@ -38,21 +47,47 @@ async function startRun(opts = {}) {
   if (!T) { $("#ticker").focus(); toast("Enter a ticker."); return null; }
   if (!U.validTicker(T)) { toast("That doesn't look like a ticker."); return null; }
   if (!canRunEngine()) return null;
-  const mode = opts.mode || S.mode;
+  const mode = opts.mode || S.mode, plan = opts.plan || S.plan;
+  if (!budgetOk(mode, plan)) return null;
   let prior = null;
   if (opts.re || mode === "earnings") { const p = S.index.find(h => h.ticker === T && h.status === "done"); if (p) prior = await DB.getRun(p.id); }
   S.calNote = C.calibrationNote(C.calibration(S.track));
-  const run = PL.newRun({ticker: T, mode, profile: S.profile, settings: S.settings, prior, engine: S.engine,
-    member: opts.quiet ? {note: "", docs: []} : {note: S.member.note, docs: S.member.docs.map(d => ({name: d.name, kind: d.kind, text: d.text}))}});
-  if (opts.noTrack) run.noTrack = true;
+  const run = PL.newRun({ticker: T, mode, plan, profile: S.profile, settings: S.settings, prior, engine: S.engine,
+    member: {note: S.member.note, docs: S.member.docs.map(d => ({name: d.name, kind: d.kind, text: d.text}))}});
   $("#ticker").value = T; S.run = run; S.open = {}; S.tab = "minutes";
-  if (!opts.quiet) { S.view = "analysis"; updateNav(); }
+  S.view = "analysis"; updateNav();
   await saveRun(run);
-  return execute(run, opts.quiet);
+  return execute(run);
+}
+function budgetOk(mode, plan, n = 1) {
+  const left = Cost.budgetLeft(); if (left == null || S.engine !== "api") return true;
+  const est = Cost.estimate(mode, plan).cost * n;
+  if (est > left) { toast(`That would go over your monthly budget ($${Cost.spentThisMonth().toFixed(2)} spent of $${(+S.settings.monthlyBudget).toFixed(0)}; this needs ≈ $${est.toFixed(2)}). Raise it in Settings → Cost & models.`, 8000); return false; }
+  return true;
+}
+/* background runs (Lab, Compare, watchlist): several at once, without taking over the Analysis screen */
+async function runQuiet({ticker, mode, plan, noTrack, onTick}) {
+  const T = U.normTicker(ticker);
+  const run = PL.newRun({ticker: T, mode, plan: plan || S.plan, profile: S.profile, settings: S.settings, engine: S.engine});
+  if (noTrack) run.noTrack = true;
+  await saveRun(run);
+  return continueQuiet(run, onTick);
+}
+async function continueQuiet(run, onTick) {
+  const ctl = new AbortController(); S.bg[run.id] = run; S.bgCtl.add(ctl); updateNav();
+  try { await PL.execute(run, Object.assign(baseHooks(), {signal: ctl.signal, onUpdate: () => onTick && onTick(run)})); afterRun(run); }
+  catch (e) { run.status = e.code === "cancelled" ? "stopped" : e.code === "budget" ? "budget" : "error"; run.error = e.message; }
+  finally { delete S.bg[run.id]; S.bgCtl.delete(ctl); await saveRun(run); updateNav(); }
+  return run;
+}
+function afterRun(run) {
+  if (!run.noTrack && run.cio) { const te = F.trackEntry(run); const i = S.track.findIndex(x => x.runId === run.id); if (i >= 0) S.track[i] = te; else S.track.unshift(te); persist.track(); }
+  const w = S.watchlist.find(x => x.ticker === run.ticker); if (w && run.pm) { w.lastRun = run.id; persist.watchlist(); }
+  Cost.learn(run);
 }
 async function resumeRun() {
   if (S.running || !S.run || !canRunEngine()) return;
-  for (const id of S.run.seats) { const r = S.run.reports[id]; if (r.status !== "done" && r.status !== "skipped") { r.status = "queued"; r.error = null; } }
+  for (const id of S.run.seats) { const r = S.run.reports[id]; if (r.status === "waiting" && r.batch?.batchId) continue; if (r.status !== "done" && r.status !== "skipped") { r.status = "queued"; r.error = null; } }
   return execute(S.run);
 }
 async function execute(run, quiet) {
@@ -61,10 +96,11 @@ async function execute(run, quiet) {
   const timer = setInterval(() => renderProgress(t0), 600);
   try {
     await PL.execute(run, hooksFor(run, t0));
-    run.seats.forEach(id => S.open[id] = id === "cio" || id === "pm");
-    if (!run.noTrack) { const te = F.trackEntry(run); const i = S.track.findIndex(x => x.runId === run.id); if (i >= 0) S.track[i] = te; else S.track.unshift(te); persist.track(); }
-    const w = S.watchlist.find(x => x.ticker === run.ticker); if (w && run.pm) { w.lastRun = run.id; }
-    if (!quiet) toast(`${run.ticker}: ${run.cio?.verdict || "done"} · ${run.cio?.overall ?? "?"}/10`);
+    run.seats.forEach(id => S.open[id] = id === "cio" || id === "pm" || id === "screen");
+    afterRun(run);
+    const msg = run.cio ? `${run.ticker}: ${run.cio.verdict || "done"} · ${run.cio.overall ?? "?"}/10` : `${run.ticker}: ${run.reports.screen?.data?.call || "done"}`;
+    if (!quiet) toast(msg + (U.isNum(run.cost) ? ` · $${run.cost.toFixed(2)}` : ""));
+    if (document.hidden) document.title = "✓ " + msg;
   } catch (e) {
     run.status = e.code === "cancelled" ? "stopped" : e.code === "budget" ? "budget" : "error"; run.error = e.message;
     if (e.code !== "cancelled") toast(e.message, 7000);
@@ -76,6 +112,7 @@ async function execute(run, quiet) {
   return run;
 }
 function stopRun() { if (S.ctl) S.ctl.abort(); }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) document.title = "AI Investment Committee"; });
 
 async function ask() {
   const run = S.run; if (!run || S.asking || S.running) return;
@@ -86,7 +123,7 @@ async function ask() {
   S.askCtl = new AbortController();
   try {
     const out = await PL.ask(run, id, q, {settings: S.settings, apiKey: S.key, signal: S.askCtl.signal, onText: t => { item.a = t; if (S.tab === "qa") renderTabs(); }});
-    Object.assign(item, {a: out.text, sources: out.sources, usage: out.usage, status: "done"});
+    Object.assign(item, {a: out.text, sources: out.sources, usage: out.usage, status: "done"}); Cost.addExtra(out.usage);
   } catch (e) { Object.assign(item, {a: e.partial || item.a, error: e.message, status: "error"}); }
   S.asking = false; await saveRun(run); renderTabs(); renderConsole();
 }
@@ -109,9 +146,9 @@ function renderEngine() {
   if (S.engine === null) { w.innerHTML = `<span class="status">Connecting…</span>`; return; }
   if (S.engine === "claude") { w.innerHTML = `<span class="status">✓ Claude account active</span><span class="note">Running inside claude.ai on your account's most capable model. Live web search and the data gateway aren't available here, so market figures come from model knowledge and are flagged unverified. For Opus 5.5 with live search and SEC data, use the GitHub version.</span>`; return; }
   if (S.engine === "none") { bar.classList.add("off"); w.innerHTML = `<span class="status">Engine unavailable</span><span class="note">This view can't reach Claude. Open the artifact on claude.ai and allow it to use Claude, or run index.html with an Anthropic API key.</span>`; return; }
-  if (S.settings.gatewayAnthropic && S.settings.gateway && !S._editKey) { w.innerHTML = `<span class="status">✓ Anthropic via gateway</span><span class="note">Calls go through your gateway, which holds the key · model ${esc(S.settings.model)}</span>${gw}`; return; }
+  if (S.settings.gatewayAnthropic && S.settings.gateway && !S._editKey) { w.innerHTML = `<span class="status">✓ Anthropic via gateway</span><span class="note">Calls go through your gateway, which holds the key · ${esc(A.PLANS[S.plan]?.label || "")} plan</span>${gw}`; return; }
   if (S.key && !S._editKey) {
-    w.innerHTML = `<span class="status">✓ API key active</span><span class="note">Key ending ${esc(S.key.slice(-4))} · ${LS.get("key", "") ? "remembered on this device" : "this session only"} · model ${esc(S.settings.model)}</span>${gw}<button class="btn small" id="chgKey" type="button">🔑 Change key</button><button class="btn small" id="forgetKey" type="button">Forget</button>`;
+    w.innerHTML = `<span class="status">✓ API key active</span><span class="note">Key ending ${esc(S.key.slice(-4))} · ${LS.get("key", "") ? "remembered on this device" : "this session only"} · ${esc(A.PLANS[S.plan]?.label || "")} plan</span>${gw}<button class="btn small" id="chgKey" type="button">🔑 Change key</button><button class="btn small" id="forgetKey" type="button">Forget</button>`;
     $("#chgKey").onclick = openKeyForm; $("#forgetKey").onclick = () => { S.key = ""; LS.del("key"); try { sessionStorage.removeItem("aic6.key"); } catch {} renderEngine(); };
   } else {
     bar.classList.add("off");
@@ -133,7 +170,8 @@ function updateNav() {
   if (S.run && c?.verdict) { hc.hidden = false; hc.style.color = verdictColor(c.verdict); hc.textContent = `${S.run.ticker} · ${c.verdict}`; }
   else if (S.run) { hc.hidden = false; hc.style.color = "var(--fg-2)"; hc.textContent = `${S.run.ticker} · ${S.running ? "in session" : S.run.status}`; }
   else hc.hidden = true;
-  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6 · Claude · knowledge mode" : `Private · Alpha Fund · v6 · ${S.settings.model === "claude-opus-5-5" ? "Opus 5.5" : S.settings.model} · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}`;
+  const bgN = Object.keys(S.bg).length;
+  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6.0.3 · Claude · knowledge mode" : `Private · Alpha Fund · v6.0.3 · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
 }
 function renderView() {
   if (S.view === "discover") renderDiscover(); else if (S.view === "compare") renderCompare(); else if (S.view === "portfolio") renderPortfolio();
@@ -149,9 +187,20 @@ async function openRun(id) {
   S.tab = "minutes"; $("#ticker").value = r.ticker; S.view = "analysis"; renderAll(); scrollTo(0, 0);
 }
 
+/* ---------------- theme ---------------- */
+function themeIsLight(t) { return t === "light" || (t === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches); }
+function applyTheme() {
+  const t = LS.get("theme", "dark"), light = themeIsLight(t);
+  document.documentElement.classList.toggle("theme-light", light);
+  const b = $("#navTheme"); if (b) { b.textContent = light ? "☾ Dark" : "☀ Light"; b.setAttribute("aria-label", light ? "Switch to dark screen" : "Switch to light screen"); }
+}
+function setTheme(t) { LS.set("theme", t); applyTheme(); if (S.view === "analysis" && S.tab === "chart") renderTabs(); }
+try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (LS.get("theme", "dark") === "system") applyTheme(); }); } catch {}
+
 /* ---------------- events ---------------- */
 function bind() {
   document.querySelectorAll(".nav [data-view]").forEach(b => b.onclick = () => go(b.dataset.view));
+  $("#navTheme").onclick = () => setTheme(themeIsLight(LS.get("theme", "dark")) ? "dark" : "light");
   $("#navPdf").onclick = () => { if (!S.run) { toast("Run or open an analysis first."); return; } if (S.inClaude) { exportHTML(S.run); toast("Printing isn't available inside claude.ai — saving a printable report instead."); return; } go("analysis"); S.open = {}; S.run.seats.forEach(id => S.open[id] = true); S.tab = "minutes"; renderTabs(); setTimeout(() => window.print(), 60); };
   $("#runForm").onsubmit = e => { e.preventDefault(); startRun(); };
   $("#reBtn").onclick = () => startRun({re: true});
@@ -174,6 +223,7 @@ function bind() {
     const d = t.dataset;
     if (t.classList.contains("seat") && d.id && S.run) { if (S.run.reports[d.id]?.status === "queued") return; S.tab = "minutes"; S.open[d.id] = true; renderTabs(); document.getElementById("rep-" + d.id)?.scrollIntoView({behavior: "smooth", block: "start"}); return; }
     if (t.matches(".rep>header[data-id]") || (t.closest(".rep>header[data-id]") && t.tagName !== "BUTTON")) return; // handled below
+    if (d.plan && !S.running) { S.plan = d.plan; LS.set("plan", S.plan); renderConsole(); renderEngine(); updateNav(); return; }
     if (d.tab) { S.tab = d.tab; renderTabs(); return; }
     if (d.goto) { S.tab = d.goto; renderTabs(); return; }
     if (d.goset) { S.setTab = d.goset; go("settings"); return; }
@@ -209,7 +259,10 @@ function bind() {
     if (t.id === "wExport") { readWatch(); persist.watchlist(); exportWatchlist(); return; }
     if (t.id === "wSync") { syncGitHub(); return; }
     if (t.id === "wCheck") { t.disabled = true; await checkAlerts(); renderPortfolio(); return; }
-    if (t.id === "wRunDue") { for (const w of S.watchlist.filter(isDue)) { const r = await startRun({ticker: w.ticker, mode: w.mode, quiet: true}); if (!r || r.status !== "done") break; } renderPortfolio(); updateNav(); return; }
+    if (t.id === "wRunDue") { const due = S.watchlist.filter(isDue); if (!due.length || !canRunEngine() || !budgetOk("quick", S.plan, due.length)) return;
+      t.disabled = true; S.busy.watch = `${due.length} running in the background${S.plan === "saver" ? " (Saver: usually within an hour)" : ""}…`; renderPortfolio();
+      const runs = await U.pmap(due, w => runQuiet({ticker: w.ticker, mode: w.mode || "quick"}), 5);
+      S.busy.watch = false; toast(runs.map(r => `${r.ticker} ${r.cio?.verdict || r.status}`).join(" · "), 8000); renderPortfolio(); updateNav(); return; }
     if (d.tcheck) { checkThesis(+d.tcheck); return; }
     if (d.tdel) { S.theses.splice(+d.tdel, 1); persist.theses(); renderPortfolio(); return; }
     // record
@@ -238,10 +291,11 @@ function bind() {
     if (d.tf) { const i = +t.closest("[data-ti]").dataset.ti; S.theses[i][d.tf] = t.value; persist.theses(); return; }
     if (d.tcat) { const i = +t.closest("[data-ti]").dataset.ti; S.theses[i].catalysts[+d.tcat].done = t.checked; persist.theses(); return; }
     if (d.tm) { const v = U.num(t.value); if (U.isNum(v)) { F.manualMark(S.track[+d.tm], v); persist.track(); renderRecord(); } return; }
+    if (t.id === "themeSel") { setTheme(t.value); return; }
     if (t.id === "importAll") { const f = t.files[0]; if (f) importAll(f); t.value = ""; }
   });
   document.addEventListener("submit", async e => {
-    const f = e.target; if (!["jform", "ideaForm", "cmpForm", "labForm", "profileForm", "engineForm", "dataForm", "seatsForm", "ghForm"].includes(f.id)) return;
+    const f = e.target; if (!["jform", "ideaForm", "cmpForm", "labForm", "profileForm", "costForm", "dataForm", "seatsForm", "ghForm"].includes(f.id)) return;
     e.preventDefault();
     if (f.id === "jform" && S.run) { const j = {runId: S.run.id, ticker: S.run.ticker, date: U.today(), verdict: S.run.cio?.verdict, overall: S.run.cio?.overall, decision: $("#jDecision").value, price: $("#jPrice").value, size: $("#jSize").value, notes: $("#jNotes").value};
       if (!j.decision) { toast("Choose a decision."); return; } const i = S.journal.findIndex(x => x.runId === j.runId); if (i >= 0) S.journal[i] = j; else S.journal.unshift(j); persist.journal(); toast("Decision logged in the journal."); }
@@ -249,14 +303,19 @@ function bind() {
     if (f.id === "cmpForm") runCompare();
     if (f.id === "labForm") runLab();
     if (f.id === "profileForm") { S.profile = {style: $("#pStyle").value, horizon: $("#pHorizon").value, risk: $("#pRisk").value, dd: $("#pDD").value, size: $("#pSize").value.trim(), riskPerTrade: $("#pRpt").value.trim(), ccy: $("#pCcy").value.trim() || "USD", accounts: $("#pAcc").value.trim(), other: $("#pOther").value.trim(), expertise: $("#pExp").value.trim()}; LS.set("profile", S.profile); toast("Profile saved."); }
-    if (f.id === "engineForm") { Object.assign(S.settings, {model: $("#sModel").value.trim() || A.DEFAULTS.model, retrievalModel: $("#sRetr").value.trim(), devilModel: $("#sDevil").value.trim(), searchDepth: +$("#sSearch").value, toolType: $("#sTool").value.trim() || A.DEFAULTS.toolType,
-      maxTokens: Math.max(1000, +$("#sMax").value || A.DEFAULTS.maxTokens), promptCaching: $("#sCache").value === "true", parallel: $("#sPar").value === "true", budget: $("#sBudget").value.trim(), priceIn: $("#sPin").value.trim(), priceOut: $("#sPout").value.trim(), priceSearch: $("#sPsearch").value.trim(),
-      discountRate: +$("#sDR").value || 9, terminalGrowth: +$("#sTG").value || 2.5, defaultMode: $("#sMode").value}); LS.set("settings", S.settings); updateNav(); renderEngine(); toast("Engine settings saved."); }
+    if (f.id === "costForm") { const v = id => $("#" + id).value.trim();
+      Object.assign(S.settings, {plan: v("sPlan"), monthlyBudget: v("sMonthly"), runCap: v("sCap"),
+        judgeModel: v("sJudge") || A.DEFAULTS.judgeModel, analystModel: v("sAnalyst") || A.DEFAULTS.analystModel, helperModel: v("sHelper") || A.DEFAULTS.helperModel,
+        searchDepth: +v("sSearch"), toolType: v("sTool") || A.DEFAULTS.toolType, maxTokens: Math.max(1000, +v("sMax") || A.DEFAULTS.maxTokens),
+        discountRate: +v("sDR") || 9, terminalGrowth: +v("sTG") || 2.5, defaultMode: v("sMode")});
+      S.settings.model = S.settings.judgeModel; S.plan = S.settings.plan; LS.set("plan", S.plan);
+      LS.set("settings", S.settings); updateNav(); renderEngine(); renderConsole(); toast("Cost & model settings saved."); }
     if (f.id === "dataForm") { readDataForm(); LS.set("settings", S.settings); applyEnv(); renderEngine(); updateNav(); toast("Data settings saved."); }
-    if (f.id === "seatsForm") { S.settings.customSeats = ["desk"].concat($$("[data-cs]").filter(x => x.checked && x.dataset.cs !== "desk").map(x => x.dataset.cs)); S.settings.noSearchSeats = $$("[data-ns]").filter(x => !x.checked).map(x => x.dataset.ns); LS.set("settings", S.settings); toast("Seats saved. Choose Custom mode to use them."); }
+    if (f.id === "seatsForm") { S.settings.customSeats = ["desk"].concat($$("[data-cs]").filter(x => x.checked && x.dataset.cs !== "desk").map(x => x.dataset.cs)); LS.set("settings", S.settings); toast("Seats saved. Choose Custom mode to use them."); }
     if (f.id === "ghForm") { Object.assign(S.settings, {ghOwner: $("#ghO").value.trim(), ghRepo: $("#ghR").value.trim(), ghBranch: $("#ghB").value.trim() || "main"}); LS.set("settings", S.settings); toast("GitHub settings saved."); }
   });
-  addEventListener("beforeunload", e => { if (S.running) { e.preventDefault(); e.returnValue = ""; } });
+  addEventListener("beforeunload", e => { const batchOnly = S.run && S.run.seats.every(id => S.run.reports[id].status !== "running"); if ((S.running && !batchOnly) || Object.keys(S.bg).length) { e.preventDefault(); e.returnValue = ""; } });
+  setInterval(() => { if (S.running && S.run?.batch) { renderBoard(); renderProgress(); } }, 30000);
 }
 function readDataForm() { if (!$("#gUrl")) return; Object.assign(S.settings, {gateway: $("#gUrl").value.trim().replace(/\/+$/, ""), gatewayToken: $("#gTok").value.trim(), gatewayAnthropic: $("#gAnth").value === "true"}); }
 function readHoldings() { $$("[data-hi]").forEach(tr => { const h = S.holdings[+tr.dataset.hi]; if (!h) return; tr.querySelectorAll("[data-hf]").forEach(inp => { h[inp.dataset.hf] = inp.dataset.hf === "ticker" ? U.normTicker(inp.value) : inp.value.trim(); }); }); }
@@ -275,13 +334,19 @@ async function checkAlerts() {
 
 /* ---------------- boot ---------------- */
 (async function boot() {
-  loadState(); bind();
-  const fixed = []; // runs interrupted by closing the page
-  for (const h of S.index) if (h.status === "running") { const r = await DB.getRun(h.id); if (r) { r.status = "stopped"; r.seats.forEach(id => { if (r.reports[id].status === "running") { r.reports[id].status = "stopped"; r.reports[id].error = "Interrupted when the page closed. Press Resume."; } }); await saveRun(r); fixed.push(r.id); } }
-  const last = S.index[0]; if (last) { const r = await DB.getRun(last.id); if (r) { S.run = r; if (r.status === "done") r.seats.forEach(x => S.open[x] = x === "cio" || x === "pm"); $("#ticker").value = r.ticker; } }
+  loadState(); applyTheme(); bind();
+  const waiting = []; // runs that were waiting on Anthropic's Batch API keep going; others were interrupted
+  for (const h of S.index) if (h.status === "running") { const r = await DB.getRun(h.id); if (!r) continue;
+    if (r.batch && r.seats.some(id => r.reports[id].status === "waiting" && r.reports[id].batch?.batchId)) { waiting.push(r); continue; }
+    r.status = "stopped"; r.seats.forEach(id => { if (["running", "waiting"].includes(r.reports[id].status)) { r.reports[id].status = "stopped"; r.reports[id].error = "Interrupted when the page closed. Press Resume."; } }); await saveRun(r); }
+  const last = S.index[0]; if (last) { const r = waiting.find(x => x.id === last.id) || await DB.getRun(last.id); if (r) { S.run = r; if (r.status === "done") r.seats.forEach(x => S.open[x] = x === "cio" || x === "pm" || x === "screen"); $("#ticker").value = r.ticker; } }
   S.calNote = C.calibrationNote(C.calibration(S.track));
   renderAll();
   S.engine = await detectEngine(); applyEnv();
   renderAll();
+  if (waiting.length && S.engine === "api" && (S.key || (S.settings.gatewayAnthropic && S.settings.gateway))) {
+    toast(`Picking up ${waiting.length} run${waiting.length > 1 ? "s" : ""} waiting at Anthropic's Batch API.`, 5000);
+    for (const r of waiting) { if (S.run && r.id === S.run.id && !S.running) execute(r); else continueQuiet(r); }
+  } else for (const r of waiting) { r.status = "stopped"; await saveRun(r); }
   const due = S.watchlist.filter(isDue); if (due.length) toast(`${due.length} watchlist ticker${due.length > 1 ? "s are" : " is"} due for review — see Portfolio → Watchlist.`, 6000);
 })();

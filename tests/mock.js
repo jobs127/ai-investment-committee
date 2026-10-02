@@ -123,39 +123,69 @@ const SEAT_DATA = {
     stop: {price: 8.1, type: "closing basis", rationale: "below invalidation"}, targets: [{price: 12.5, timeframe: "12 months"}, {price: 16, timeframe: "24 months"}], risk_reward: "1:1.5", alt_entry: {strategy: "cash-secured put", strike: 9, expiry: "60 days", rationale: "paid to wait"},
     review_trigger: "After Q3 results", alerts: [{type: "price_below", value: "8.1", note: "stop"}], tax_note: "New lot", liquidity_note: "Under 1% of ADV"}
 };
-function anthropicSSE(body) {
+/* Builds the mock assistant message for a Messages API request body (used for streaming and batch). */
+function anthropicMessage(body) {
   const task = body.messages[0].content.map(c => c.text || "").join("\n");
-  const last = body.messages[body.messages.length - 1];
+  const sys = (body.system || []).map ? (body.system || []).map(x => x.text || "").join("") : String(body.system || "");
   const m = task.match(/YOUR SEAT: ([A-Z' &]+?) —/) || task.match(/REBUTTAL — you are ([A-Z' &]+?) \(/);
   let key = m ? m[1].trim() : null; if (/=== REBUTTAL/.test(task)) key = "REBUTTAL";
   const isAsk = /=== QUESTION FOR/.test(task), isIdeas = /idea hunter/.test(task), isCompare = /Rank these candidates/.test(task), isThesis = /Check whether this investment thesis/.test(task);
-  const ev = [{type: "message_start", message: {usage: {input_tokens: 2400, cache_read_input_tokens: 1800, cache_creation_input_tokens: 600}}}]; let idx = 0;
-  const forced = body.tool_choice && body.tool_choice.type === "tool";
-  if (!forced && body.tools && body.tools.some(t => t.name === "web_search") && !/Do not search/.test(task)) {
-    ev.push({type: "content_block_start", index: idx, content_block: {type: "server_tool_use", id: "s" + idx, name: "web_search", input: {}}}, {type: "content_block_delta", index: idx, delta: {type: "input_json_delta", partial_json: '{"query":"' + (key || "q") + ' latest"}'}}, {type: "content_block_stop", index: idx}); idx++;
-    ev.push({type: "content_block_start", index: idx, content_block: {type: "web_search_tool_result", tool_use_id: "s0", content: [{type: "web_search_result", url: "https://example.com/" + idx, title: "Example source"}]}}, {type: "content_block_stop", index: idx}); idx++;
+  const isDigest = /^Digest this document/.test(task), isRepair = /convert investment-committee reports into JSON/.test(sys);
+  const content = []; let idx = 0;
+  const hasSearch = body.tools && body.tools.some(t => t.name === "web_search");
+  if (hasSearch) {
+    content.push({type: "server_tool_use", id: "s0", name: "web_search", input: {query: (key || "q") + " latest"}});
+    content.push({type: "web_search_tool_result", tool_use_id: "s0", content: [{type: "web_search_result", url: "https://example.com/" + (key || "q").replace(/\W/g, ""), title: "Example source"}]});
   }
   let data = null, text = "";
-  if (isIdeas) { text = "Ideas found."; data = {summary: "ideas", ideas: [{ticker: "WTTR", name: "Select Water Solutions", situation: "Capex cliff", why_overlooked: "Classified as oilfield services", leading_signal: "Recycling contracts", catalyst: "Q3", key_risk: "Activity"}]}; }
+  if (isDigest) text = "DIGEST: water volumes 820→905 MMbbl; revenue 1520→1610.";
+  else if (isRepair) text = "```json\n" + JSON.stringify({summary: "repaired", score_fundamentals: 7, intrinsic_low: 11, intrinsic_high: 15}) + "\n```";
+  else if (isIdeas) { text = "Ideas found."; data = {summary: "ideas", ideas: [{ticker: "WTTR", name: "Select Water Solutions", situation: "Capex cliff", why_overlooked: "Classified as oilfield services", leading_signal: "Recycling contracts", catalyst: "Q3", key_risk: "Activity"}]}; }
   else if (isCompare) { text = "WTTR ranks first."; data = {summary: "rank", ranking: [{ticker: "WTTR", rank: 1, reason: "Best EV"}, {ticker: "XOM", rank: 2, reason: "Lower upside"}]}; }
   else if (isThesis) { text = "Thesis intact."; data = {summary: "ok", status: "intact", kill_checks: [{criterion: "Infrastructure revenue growth below 5% for two quarters", status: "not_triggered", evidence: "Q2 +12%"}], catalyst_updates: [{event: "RRC disposal permit ruling", update: "Hearing scheduled"}]}; }
   else if (isAsk) text = "Because normalized free cash flow supports it.";
   else { text = `## ${key || "Report"}\n\nThis is a **mock report** for testing.\n\n| Metric | Value |\n|---|---|\n| Price | 9.90 |\n\n- point one\n- point two`; data = SEAT_DATA[key] || {summary: "ok"}; }
-  if (!forced) {
-    ev.push({type: "content_block_start", index: idx, content_block: {type: "text", text: ""}});
-    for (const ch of text.match(/[\s\S]{1,30}/g)) ev.push({type: "content_block_delta", index: idx, delta: {type: "text_delta", text: ch}});
-    if (body.tools && body.tools.some(t => t.name === "web_search")) ev.push({type: "content_block_delta", index: idx, delta: {type: "citations_delta", citation: {type: "web_search_result_location", url: "https://example.com/cite", title: "Cited source"}}});
-    ev.push({type: "content_block_stop", index: idx}); idx++;
-  }
-  const wantsTool = body.tools && body.tools.some(t => t.name === "submit_report") && data;
-  // simulate a model that forgets to call the tool on the Data Hunter's first turn, to exercise the forced follow-up
-  const skipFirst = key === "DATA HUNTER" && !forced && last.role === "user" && body.messages.length === 1;
-  if (wantsTool && !skipFirst) {
-    ev.push({type: "content_block_start", index: idx, content_block: {type: "tool_use", id: "tu" + idx, name: "submit_report", input: {}}});
-    const js = JSON.stringify(data); for (const ch of js.match(/[\s\S]{1,50}/g)) ev.push({type: "content_block_delta", index: idx, delta: {type: "input_json_delta", partial_json: ch}});
-    ev.push({type: "content_block_stop", index: idx});
-  }
-  ev.push({type: "message_delta", delta: {stop_reason: wantsTool && !skipFirst ? "tool_use" : "end_turn"}, usage: {output_tokens: 700, server_tool_use: {web_search_requests: body.tools && body.tools.some(t => t.name === "web_search") && !forced ? 1 : 0}}}, {type: "message_stop"});
+  // the Data Hunter "forgets" its JSON block to exercise the cheap repair path
+  if (data && key !== "DATA HUNTER") text += "\n\n```json\n" + JSON.stringify(data) + "\n```";
+  content.push({type: "text", text, ...(hasSearch ? {citations: [{type: "web_search_result_location", url: "https://example.com/cite", title: "Cited source"}]} : {})});
+  return {id: "msg_" + Math.random().toString(36).slice(2), type: "message", role: "assistant", model: body.model, content, stop_reason: "end_turn",
+    usage: {input_tokens: 2400, cache_read_input_tokens: 1800, cache_creation_input_tokens: 600, output_tokens: 700, server_tool_use: {web_search_requests: hasSearch ? 1 : 0}}};
+}
+function anthropicSSE(body) {
+  const msg = anthropicMessage(body);
+  const ev = [{type: "message_start", message: {usage: {input_tokens: msg.usage.input_tokens, cache_read_input_tokens: msg.usage.cache_read_input_tokens, cache_creation_input_tokens: msg.usage.cache_creation_input_tokens}}}];
+  msg.content.forEach((b, i) => {
+    if (b.type === "server_tool_use") ev.push({type: "content_block_start", index: i, content_block: {type: "server_tool_use", id: b.id, name: b.name, input: {}}}, {type: "content_block_delta", index: i, delta: {type: "input_json_delta", partial_json: JSON.stringify(b.input)}}, {type: "content_block_stop", index: i});
+    else if (b.type === "text") { ev.push({type: "content_block_start", index: i, content_block: {type: "text", text: ""}}); for (const ch of b.text.match(/[\s\S]{1,30}/g)) ev.push({type: "content_block_delta", index: i, delta: {type: "text_delta", text: ch}}); (b.citations || []).forEach(c => ev.push({type: "content_block_delta", index: i, delta: {type: "citations_delta", citation: c}})); ev.push({type: "content_block_stop", index: i}); }
+    else ev.push({type: "content_block_start", index: i, content_block: b}, {type: "content_block_stop", index: i});
+  });
+  ev.push({type: "message_delta", delta: {stop_reason: msg.stop_reason}, usage: {output_tokens: msg.usage.output_tokens, server_tool_use: msg.usage.server_tool_use}}, {type: "message_stop"});
   return ev.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
 }
-module.exports = {fixtureFor, anthropicSSE, SEAT_DATA};
+/* Mock Message Batches API: batches end after `polls` status checks */
+function batchMock(polls = 1, stateFile = null) {
+  const fs = require("fs"); let batches = new Map(), n = 0;
+  if (stateFile && fs.existsSync(stateFile)) { const d = JSON.parse(fs.readFileSync(stateFile, "utf8")); batches = new Map(d.b); n = d.n; }
+  const persist = () => stateFile && fs.writeFileSync(stateFile, JSON.stringify({b: [...batches], n})); const stats = {created: 0, requests: 0, cancels: 0};
+  return {stats, handle(method, path, bodyText) {
+    try { return this._h(method, path, bodyText); } finally { persist(); }
+  }, _h(method, path, bodyText) {
+    let m;
+    if (method === "POST" && /\/v1\/messages\/batches$/.test(path)) {
+      const body = JSON.parse(bodyText); const id = "msgbatch_" + (++n) + (stateFile ? "_" + Date.now() : "");
+      batches.set(id, {left: polls, results: body.requests.map(r => ({custom_id: r.custom_id, result: {type: "succeeded", message: anthropicMessage(r.params)}}))});
+      stats.created++; stats.requests += body.requests.length;
+      return {status: 200, json: {id, processing_status: "in_progress", request_counts: {processing: body.requests.length}}};
+    }
+    if ((m = path.match(/\/v1\/messages\/batches\/([^/]+)\/cancel$/))) { stats.cancels++; return {status: 200, json: {id: m[1], processing_status: "canceling"}}; }
+    if ((m = path.match(/\/v1\/messages\/batches\/([^/]+)\/results$/))) return {status: 200, text: batches.get(m[1]).results.map(r => JSON.stringify(r)).join("\n")};
+    if ((m = path.match(/\/v1\/messages\/batches\/([^/]+)$/))) { const b = batches.get(m[1]); const ended = b.left-- <= 0;
+      return {status: 200, json: {id: m[1], processing_status: ended ? "ended" : "in_progress", request_counts: {}, results_url: ended ? `https://api.anthropic.com/v1/messages/batches/${m[1]}/results` : null}}; }
+    return null;
+  }};
+}
+SEAT_DATA["MARKET SCOUT"] = {summary: "Consensus Hold, PT 13; short interest 6%.", consensus_rating: "Hold", price_target_mean: 13, analyst_count: 7, short_interest_pct: 6.1, peers: [{ticker: "AESI", pe: 14, ev_ebitda: 6.1}], claims: [{text: "Short interest 6.1% of float", metric: "short_interest_pct", value: 6.1, source_type: "secondary", source_url: "https://example.com/si", confidence: "medium"}]};
+SEAT_DATA["FIELD SCOUT"] = {summary: "Operators shifting to recycled water.", catalysts: [{event: "Q3 earnings", date: "2026-11-02", impact: "binary"}]};
+SEAT_DATA["SCREENER"] = {summary: "Worth a look.", score_screen: 7, call: "PROMISING", reasons: ["Capex cliff"], questions: ["Durability of recycling pricing?"]};
+
+module.exports = {fixtureFor, anthropicSSE, anthropicMessage, batchMock, SEAT_DATA};

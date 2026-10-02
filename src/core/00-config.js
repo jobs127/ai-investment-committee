@@ -3,28 +3,53 @@
 "use strict";
 const AIC = G.AIC = G.AIC || {};
 
-AIC.VERSION = "6.0.1";
-AIC.PROMPT_VERSION = "p6.0";
+AIC.VERSION = "6.0.3";
+AIC.PROMPT_VERSION = "p6.3";
 
 AIC.DEFAULTS = {
-  model: "claude-opus-5-5",
-  retrievalModel: "",          // blank = same as model (economy option for retrieval-heavy seats)
-  devilModel: "",              // blank = same as model (a different model gives an independent view)
+  plan: "saver",               // saver | balanced | max  (see AIC.PLANS)
+  judgeModel: "claude-opus-5-5",      // CIO, Devil's Advocate, Data Hunter (and every seat on Max)
+  analystModel: "claude-sonnet-5-5",  // the other seats on Saver/Balanced
+  helperModel: "claude-haiku-4-5-20251001", // document digests, JSON repair
+  model: "claude-opus-5-5",    // legacy alias of judgeModel
   searchDepth: 1,              // 0 off, .5 light, 1 standard, 1.5 deep
   toolType: "web_search_20250305",
   maxTokens: 8000,
-  promptCaching: true,
-  parallel: true,
-  budget: "",                  // $ cap per run (needs prices)
-  priceIn: "", priceOut: "", priceSearch: "",
+  runCap: "3",                 // $ cap per run (blank = none)
+  monthlyBudget: "",           // $ per calendar month (blank = none)
   gateway: "", gatewayToken: "", gatewayAnthropic: false,
   secUserAgent: "",
   discountRate: 9, terminalGrowth: 2.5,
   ghOwner: "", ghRepo: "", ghBranch: "main",
   defaultMode: "standard",
-  customSeats: null,           // array of seat ids for custom mode
-  noSearchSeats: []            // seat ids with web search disabled
+  customSeats: null,
+  promptCaching: true, parallel: true
 };
+
+/* Three plans — the only cost choice the user makes */
+AIC.PLANS = {
+  saver:    {label: "Saver", short: "about ¼ of Max · results usually within an hour", batch: true,  lean: true,
+             note: "Anthropic's Batch API (half price) + the lean engine. You can close the page; the run continues when you come back."},
+  balanced: {label: "Balanced", short: "about ½ of Max · results in minutes", batch: false, lean: true,
+             note: "Same lean engine as Saver, answered immediately."},
+  max:      {label: "Max", short: "full price · all Opus · results in minutes", batch: false, lean: false,
+             note: "Every seat on Opus 5.5 with its own web searches and the full committee record. The v6.0 behaviour."}
+};
+/* Which seats keep the most capable model on the lean plans */
+AIC.JUDGE_SEATS = ["cio", "devil", "hunter"];
+
+/* $ per million tokens (Anthropic list prices, Oct 2026). Batch = 50% off tokens. Web search $10 / 1,000. */
+AIC.PRICES = {
+  "claude-opus-5-5":   {in: 4,  out: 20, cw: 5,     cr: 0.20},
+  "claude-sonnet-5-5": {in: 2,  out: 10, cw: 2.5,   cr: 0.20},
+  "claude-haiku-4-5":  {in: 1,  out: 5,  cw: 1.25,  cr: 0.10},
+  "claude-fable-5-1":  {in: 10, out: 50, cw: 12.5,  cr: 0.25},
+  "claude-opus-5":     {in: 5,  out: 25, cw: 6.25,  cr: 0.50},
+  "claude-sonnet-5":   {in: 2,  out: 10, cw: 2.5,   cr: 0.20},
+  "claude-opus-4-8":   {in: 5,  out: 25, cw: 6.25,  cr: 0.50}
+};
+AIC.SEARCH_PRICE = 10 / 1000;
+AIC.priceFor = model => { const m = String(model || ""); const k = Object.keys(AIC.PRICES).sort((a, b) => b.length - a.length).find(x => m.startsWith(x)); return AIC.PRICES[k] || AIC.PRICES["claude-opus-5-5"]; };
 
 AIC.DEFAULT_PROFILE = {
   style: "Balanced (quality at a fair price)", horizon: "Buy & hold (3–5 years)", risk: "Moderate", dd: "-25%",
@@ -45,7 +70,10 @@ AIC.METRIC_KEYS = ["price","market_cap","pe_ttm","pe_fwd","ev_ebitda","ev_sales"
 AIC.SEATS = [
   {id:"desk",   code:"DD",  name:"Data Desk",            role:"Primary data & computations", blurb:"EDGAR XBRL, prices, filings — computed in code", color:"var(--c-desk)",  stage:0, code_only:true},
   {id:"member", code:"MB",  name:"Member's Note",        role:"Your edge",                   blurb:"Your own view and documents",         color:"var(--c-member)", stage:0, code_only:true},
-  {id:"scout",  code:"DS",  name:"Data Scout",           role:"Primary-source intelligence", blurb:"Filings, results, catalysts, gaps",    color:"var(--c-scout)",  stage:1, search:6, words:700, retrieval:true},
+  {id:"scout",  code:"DS",  name:"Data Scout",           role:"Company & primary sources",   blurb:"Filings, results, guidance, gaps",    color:"var(--c-scout)",  stage:1, search:6, words:800, retrieval:true, scout:true},
+  {id:"mscout", code:"MK",  name:"Market Scout",         role:"Estimates, positioning, macro", blurb:"Consensus, short interest, 13F, peers, macro", color:"var(--c-sent)", stage:1, search:6, words:900, scout:true, leanOnly:true},
+  {id:"fscout", code:"FS",  name:"Field Scout",          role:"Industry & ground truth",     blurb:"Channel checks, hiring, permits, catalysts", color:"var(--c-industry)", stage:1, search:7, words:900, scout:true, leanOnly:true},
+  {id:"screen", code:"SC",  name:"Screener",             role:"Is it worth a committee?",    blurb:"One quick read on the Data Desk",     color:"var(--c-expect)", stage:2, search:3, words:450},
   {id:"expect", code:"MX",  name:"Market Expectations",  role:"Variant-perception setup",    blurb:"What the price already assumes",      color:"var(--c-expect)", stage:2, search:2, words:450},
   {id:"macro",  code:"MS",  name:"Macro Strategist",     role:"Cycle, rates, drivers",       blurb:"Leading indicators & sensitivities",  color:"var(--c-macro)",  stage:3, search:3, words:450},
   {id:"industry",code:"IS", name:"Industry Specialist",  role:"Channel checks",              blurb:"Customers, suppliers, competitors",   color:"var(--c-industry)",stage:3, search:5, words:550, retrieval:true},
@@ -67,7 +95,8 @@ AIC.SEATS = [
 AIC.seat = id => AIC.SEATS.find(s => s.id === id);
 
 AIC.MODES = {
-  full:     {label:"Full committee", seats:AIC.SEATS.map(s=>s.id), note:"All 18 seats + rebuttals. Deepest and most expensive."},
+  screen:   {label:"Screen", seats:["desk","member","screen"], note:"Data Desk plus one quick read: is this worth a committee run? Costs cents."},
+  full:     {label:"Full committee", seats:AIC.SEATS.map(s=>s.id).filter(id => id !== "screen"), note:"Every seat + rebuttals. Deepest."},
   standard: {label:"Standard", seats:["desk","member","scout","expect","macro","sent","hunter","forensic","chart","bull","bear","devil","rebuttal","cio","pm"], note:"Core seats plus Bull, Expectations, Forensic and rebuttals."},
   quick:    {label:"Quick", seats:["desk","member","scout","expect","hunter","bear","cio","pm"], note:"Fast screen: facts, expectations, fundamentals, risk, verdict.", searchScale:0.5},
   earnings: {label:"Earnings update", seats:["desk","member","scout","expect","hunter","sent","forensic","cio","pm"], note:"Re-run focused on what changed in the latest results. Uses the prior run as context.", earnings:true},
@@ -193,6 +222,14 @@ AIC.SCHEMAS = {
     price: S.num("Last price"), price_as_of: S.str("Timestamp/date of last price"), currency: S.str("Trading currency"),
     shares_outstanding: S.num("Total shares outstanding, all classes (e.g. Class A + Class B), as a plain number"), market_cap: S.num("Market capitalization in the trading currency, as a plain number"),
     next_earnings_date: S.str("YYYY-MM-DD if known"), data_quality: S.enm(["High","Medium","Low"], "Quality of the data you found")}},
+  mscout: {score:null, extra:{
+    consensus_rating: S.str(""), price_target_mean: S.num(""), analyst_count: S.num(""),
+    short_interest_pct: S.num(""), peers: S.arr(S.obj({ticker:S.str(""), pe:S.num(""), ev_ebitda:S.num(""), fcf_yield_pct:S.num("")},["ticker"]), "", 4)}},
+  fscout: {score:null, extra:{
+    catalysts: S.arr(S.obj({event:S.str(""), date:S.str(""), impact:S.enm(["positive","negative","binary"],"")},["event","date"]), "Dated events found", 10)}},
+  screen: {score:"score_screen", extra:{
+    score_screen: S.int10("10 = clearly worth a full committee"), call: S.enm(["PROMISING","MIXED","PASS"], ""),
+    reasons: S.arr(S.str(""), "", 5), questions: S.arr(S.str(""), "What a full committee should answer", 5)}},
   expect: {score:null, extra:{
     implied_growth_pct: S.num("Annual growth the price implies (use the Data Desk reverse DCF if available)"),
     consensus_narrative: S.str("The story the market is telling, 2 sentences"),

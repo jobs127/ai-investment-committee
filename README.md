@@ -1,10 +1,35 @@
-# AI Investment Committee — v6
+# AI Investment Committee — v6.0.3
 
-A staged committee of AI analysts debates one stock or ETF and delivers four things: a verdict, a probability-weighted expected value, a variant view (where the market is wrong), and an executable trade plan. Every LLM seat runs on **Claude Opus 5.5** (`claude-opus-5-5`). The numbers that matter (financials, ratios, quality scores, technicals, insider activity, filing-language changes, expected value and position sizing) are **computed in code from primary data**, not by the model.
+A staged committee of AI analysts debates one stock or ETF and delivers four things: a verdict, a probability-weighted expected value, a variant view (where the market is wrong), and an executable trade plan. You pick one of three cost plans (below). On **Max** every seat runs on **Claude Opus 5.5**; on **Saver** and **Balanced** the judges run on Opus 5.5 and the analysts on Sonnet 5.5. The numbers that matter (financials, ratios, quality scores, technicals, insider activity, filing-language changes, expected value and position sizing) are **computed in code from primary data**, not by the model.
 
 The app is still one HTML file, so it runs in Chrome on a Chromebook with nothing to install. The optional pieces are a free Cloudflare Worker that fetches SEC and price data, and GitHub Actions that run your watchlist on a schedule.
 
 > Research tool, not investment advice. Models make mistakes, data can be stale, and scores are judgments. Verify before acting.
+
+---
+
+## Cost plans (new in 6.0.3)
+
+There are only three choices, shown as buttons under the ticker box:
+
+| Plan | Cost | Speed | How |
+|---|---|---|---|
+| **Saver** (default) | about ¼ of Max | usually within an hour | Anthropic's **Batch API** (half price) + the lean engine. You can close the tab; the run continues when you come back. |
+| **Balanced** | about ½ of Max | minutes | The same lean engine, answered immediately. |
+| **Max** | full price | minutes | Every seat on Opus 5.5 with its own searches and the full committee record (the v6.0 behaviour). |
+
+The **lean engine** does these automatically — no toggles:
+- Three **Scouts** (Data, Market, Field) do the web research once for the whole committee; other seats read their findings instead of searching again.
+- **Judges** (CIO, Devil's Advocate, Data Hunter) use Opus 5.5; analysts use Sonnet 5.5; small chores (document digests, JSON fixes) use Haiku 4.5.
+- Later seats read **summaries** of earlier reports; the Devil's Advocate, CIO and Portfolio Manager still read everything in full. Reports are **not shortened**.
+- Your documents are **digested once**, not re-sent to every seat.
+- **Recent work is reused** for the same ticker: Data Desk 24 h, Scouts 72 h, Macro 12 h (never for Re-analysis or Earnings mode). Reused seats are labelled and cost nothing.
+- **Smart depth:** the Bull is skipped when every seat is already clearly bullish (the Bear and Devil's Advocate always run), and rebuttals only answer serious critiques.
+- **Screen** mode: a cheap first look (Data Desk + one Screener) that tells you whether a ticker deserves a full committee.
+
+Spending controls (Settings → **Cost & models**): default plan, **monthly budget** (a run that would exceed it won't start), and **stop a run above $X** (Resume continues it). The **Cost** tab on every run shows each seat's model, tokens, searches and dollars, and what the same run would have cost on Max. Estimates learn from your own runs.
+
+**Saver in the browser** calls Anthropic's Batch API. If your browser can't reach it directly, the app automatically routes Batch calls through your data gateway — that needs the 6.0.3 worker code (re-paste `worker/gateway.js` in Cloudflare → your worker → Edit code → Deploy).
 
 ---
 
@@ -114,9 +139,9 @@ If you prefer the command line: `cd worker && npx wrangler deploy`, then `npx wr
 3. For scheduled watchlist runs:
    - **Settings → Secrets and variables → Actions:** add the secret `ANTHROPIC_API_KEY` and the variable `SEC_USER_AGENT`.
    - In the app, go to Portfolio → Watchlist → **⇩ watchlist.json** and commit that file to the repo root.
-   - The **Watchlist committee** workflow runs on weekdays. It re-runs tickers that are due, checks price alerts, flags verdict changes, opens a GitHub issue when something fires (GitHub emails you), and commits results to `results/`.
+   - The **Committee queue** workflow runs every 30 minutes. It starts watchlist tickers that are due (on the Saver plan by default, i.e. Batch prices), advances runs that are waiting on Anthropic one step at a time, checks price alerts once a day, flags verdict changes, opens a GitHub issue when something fires (GitHub emails you), and commits results to `results/`. Waiting runs are kept in `results/pending/`. The plan comes from your app settings when you export watchlist.json (Saver if not set).
    - In the app, set Settings → GitHub (owner, repo) and use **Sync results from GitHub**. The repo must be public for this, or download the results and use Import.
-4. **Benchmark (Lab)** workflow: run it manually to benchmark `evals/benchmark.json` after changing prompts.
+4. **Benchmark (Lab)** workflow: run it manually to queue `evals/benchmark.json`; the Committee queue finishes it at Batch prices and writes `evals/results/`.
 
 ### Inside claude.ai
 The artifact version runs on your Claude account's most capable model with no API key. Claude pages can't reach the open web or a gateway, so there's no live search and no Data Desk; agents work from model knowledge and mark market figures unverified. Use it for quick reads, and the GitHub version for real work.
@@ -125,16 +150,7 @@ The artifact version runs on your Claude account's most capable model with no AP
 
 ## Cost
 
-A Full run is about 20 Opus calls, and most of them search the web. Prompt caching (on by default) re-uses the shared house rules and committee record across seats.
-
-Ways to control cost:
-- Use Standard or Quick mode.
-- Set Light search depth.
-- Turn off search for individual seats.
-- Set a cheaper **retrieval-seats model**.
-- Set a **budget cap per run**. The run stops when the cap is reached, and Resume continues it.
-
-Enter current prices from anthropic.com/pricing in Settings → Engine to see live cost estimates.
+See **Cost plans** at the top. Rough guide at current prices (Opus 5.5 $4/$20 per million input/output tokens, Sonnet 5.5 $2/$10, Haiku 4.5 $1/$5, web search $10 per 1,000, Batch half price): a Full committee is a few dollars on Max, about half that on Balanced and about a quarter on Saver; Quick and Screen cost much less. The estimate under the plan buttons is the number to trust — it learns from your runs.
 
 ## Privacy
 
@@ -165,7 +181,7 @@ src/core/                  DOM-free engine shared by the browser and the Node ru
   35-desk.js               Data Desk assembly
   40-prompts.js            house rules, seat tasks, committee record
   50-engine.js             Anthropic streaming + submit_report tool, prompt caching, retries; claude.ai sample engine
-  60-pipeline.js           staged execution, parallel seats, rebuttals, budget guard, Ask
+  60-pipeline.js           plans, lean engine, batch/instant jobs, reuse, estimates, caps, rebuttals, Ask
   70-features.js           Discover, Compare, thesis checks, track record, Lab
 src/ui/                    browser UI
 worker/                    Cloudflare Worker data gateway

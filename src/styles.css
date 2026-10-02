@@ -15,8 +15,24 @@
   --f-display:"Syncopate","Arial Black",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
   --f-sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --strong:#ffffff; --on-warn:#1a1205;
   --r:6px;
 }
+/* Light theme: same roles, steps chosen for a light surface (darker identity colors keep text contrast) */
+:root.theme-light{
+  color-scheme: light;
+  --bg:#f4f6f9; --bg-2:#eceff4; --panel:#ffffff; --panel-2:#eef2f7; --sunk:#f8fafc;
+  --line:#dbe2ea; --line-2:#c3cdd9;
+  --fg:#16202c; --fg-2:#465265; --muted:#6a7586;
+  --accent:#1f66c4;
+  --good:#17803f; --good-2:#4f7f0e; --warn:#a86400; --orange:#bf4f17; --bad:#c42f2b;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+  --c-desk:#56677b; --c-member:#946500; --c-scout:#16739f; --c-expect:#7449cf; --c-macro:#6446c9; --c-industry:#167a6c; --c-sent:#a86400; --c-scuttle:#80601a;
+  --c-hunter:#2259bd; --c-forensic:#bf4f17; --c-mgmt:#527010; --c-chart:#17803f; --c-catalyst:#906b00; --c-historian:#85542c;
+  --c-bull:#17803f; --c-bear:#c42f2b; --c-devil:#aa2a76; --c-rebuttal:#97457f; --c-cio:#8a6600; --c-pm:#0f7c6e;
+  --strong:#0b1220; --on-warn:#ffffff;
+}
+.theme-btn{min-width:84px}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{background:var(--bg)}
@@ -45,7 +61,7 @@ a{color:var(--accent)}
 .nav button[aria-current="page"]{color:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
 .nav button.hist[aria-current="page"]{color:var(--c-cio);border-color:var(--c-cio)}
 .nav button.pdf{color:var(--c-pm);border-color:color-mix(in srgb,var(--c-pm) 45%,var(--line-2))}
-.cnt{display:inline-block;min-width:16px;padding:1px 5px;border-radius:8px;background:var(--warn);color:#1a1205;font-size:9.5px;letter-spacing:0;margin-left:4px}
+.cnt{display:inline-block;min-width:16px;padding:1px 5px;border-radius:8px;background:var(--warn);color:var(--on-warn);font-size:9.5px;letter-spacing:0;margin-left:4px}
 
 /* engine bar */
 .engine{border-bottom:1px solid var(--line);background:linear-gradient(90deg,color-mix(in srgb,var(--good) 7%,var(--bg)),var(--bg))}
@@ -224,7 +240,7 @@ section+section{margin-top:22px}
 .md{font:14px/1.65 var(--f-sans);color:var(--fg);max-width:96ch;overflow-wrap:anywhere}
 .md h1,.md h2,.md h3,.md h4{font:700 12.5px/1.4 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;margin:16px 0 8px;color:var(--fg)}
 .md p{margin:0 0 10px} .md ul,.md ol{margin:0 0 12px;padding-left:22px} .md li{margin:3px 0}
-.md strong{color:#fff;font-weight:600}
+.md strong{color:var(--strong);font-weight:600}
 .md code{font:12.5px var(--f-mono);background:var(--panel-2);padding:1px 5px;border-radius:3px}
 .md pre{background:var(--panel);padding:12px;border-radius:var(--r);overflow-x:auto;font:12px/1.5 var(--f-mono)}
 .md hr{border:0;border-top:1px solid var(--line);margin:16px 0}
@@ -281,7 +297,7 @@ section+section{margin-top:22px}
 .pchart .vol{fill:color-mix(in srgb,var(--fg-2) 22%,transparent)}
 .pchart path{fill:none;stroke-width:2;stroke-linejoin:round}
 .pchart .l-px{stroke:var(--fg)} .pchart .l-m20{stroke:var(--s1)} .pchart .l-m50{stroke:var(--s2)} .pchart .l-m200{stroke:var(--s3)}
-.pchart .dl{font:10.5px var(--f-mono)} .pchart .s3{fill:var(--s3)}
+.pchart .dl{font:10.5px var(--f-mono)} .pchart .s3{fill:var(--fg-2)}
 .pchart .endpt{fill:var(--fg);stroke:var(--panel);stroke-width:2}
 .pchart .zone{fill:color-mix(in srgb,var(--good) 14%,transparent)}
 .pchart .fib{stroke:color-mix(in srgb,var(--c-expect) 50%,transparent);stroke-dasharray:2 4}
@@ -367,3 +383,15 @@ section+section{margin-top:22px}
   main{padding:0}
   .card,.rep{break-inside:avoid-page}
 }
+
+/* 6.0.3 plan picker & cost */
+.plans{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
+.plan-opt{flex:1 1 180px;text-align:left;display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);color:var(--fg);cursor:pointer;font:inherit}
+.plan-opt b{font-size:14px}.plan-opt span{font-size:12px;color:var(--fg-2)}
+.plan-opt[aria-checked="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--bg-2))}
+.plan-opt:disabled{opacity:.55;cursor:default}
+.hint.est b{color:var(--fg)}
+.seat[data-st="waiting"]{border-style:dashed}
+.seat[data-st="waiting"] .state{color:var(--warn)}
+.seat[data-st="skipped"]{opacity:.55}
+details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px}

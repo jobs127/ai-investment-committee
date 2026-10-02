@@ -33,7 +33,8 @@ House rules:
 
 Output protocol:
 1. Write your report in Markdown, with short headers and tables where useful.
-2. Then call the submit_report tool exactly once with the structured fields. Do not repeat the report inside the tool call. In "claims", list your most decision-relevant factual claims. When a claim is a number, set "metric" using these keys where they fit: ${AIC.METRIC_KEYS.join(", ")}. Percentages are plain numbers (12.5 means 12.5%). Set source_type honestly.`;
+2. End with one fenced \`\`\`json block holding the structured fields listed in your task. In "claims", list your most decision-relevant factual claims. When a claim is a number, set "metric" using these keys where they fit: ${AIC.METRIC_KEYS.join(", ")}. Percentages are plain numbers (12.5 means 12.5%). Set source_type honestly.
+${run.lean ? "\nResearch: on this plan the Scouts do the committee's web research. Their notes (stage 1) are your evidence; unless your task gives you a search budget, do not search. Earlier analysts appear as summaries with their key data." : ""}`;
 };
 
 function playbookText(pb) {
@@ -49,7 +50,32 @@ const budget = n => n > 0 ? `Search budget: up to ${n} searches.` : "Do not sear
 
 /* ---------- seat tasks ---------- */
 P.tasks = {
+  mscout: c => `${budget(c.searches)}
+You are the Market Scout. Gather the market-side evidence the whole committee will rely on for ${c.T}; nobody else searches the web on this plan. Write dense, dated research notes with a source for every fact — no opinions, no scores.
+1. Price and Street: last price, consensus rating, analyst count, price-target range, EPS/revenue estimates for this year and next, and revision direction over 30/90 days.
+2. Positioning: short interest (% float, days to cover, trend), borrow cost if available, options implied volatility vs history and skew, notable 13F adds/cuts by named funds, any 13D activism, buybacks executed vs authorized.
+3. Valuation of 2–3 named peers: P/E, EV/EBITDA, FCF yield.
+4. Macro dashboard as it bears on this company: policy rate path, 10-year yield and curve shape, credit spreads, ISM new orders, and the commodity or rate drivers in the sector playbook — with direction of change.
+${c.playbook}`,
+
+  fscout: c => `${budget(c.searches)}
+You are the Field Scout. Gather the industry and ground-truth evidence the whole committee will rely on for ${c.T}; nobody else searches the web on this plan. Write dense, dated research notes with a source for every fact — no opinions, no scores.
+1. Sector KPIs from the playbook for the company and 2–3 named competitors, with trend.
+2. Channel checks: dated statements from the latest calls or filings of the largest customers, suppliers and competitors (capex plans, volumes, pricing, capacity).
+3. Ground truth: job postings trend by function, employee and customer review trends, web/app traffic, pricing-page changes, permits and the regulatory databases in the playbook.
+4. Dated catalysts in the next 12 months: earnings dates, regulatory decisions, contract renewals, debt maturities, investor days, index events.
+5. Any historical analogs or base-rate data points for this kind of situation.
+${c.playbook}`,
+
+  screen: c => `${budget(c.searches)}
+You are the Screener. Using the Data Desk fact sheet (and a few searches for the latest news and what the price implies), decide whether ${c.T} deserves a full committee run for this investor. Be brief and concrete:
+1. What kind of situation is this, and does anything make it likely to be mispriced (or a value trap)?
+2. The 3 strongest reasons for and against spending a committee run on it.
+3. The questions a full committee should answer.
+Give a call: PROMISING, MIXED or PASS, with score_screen.`,
+
   scout: c => `${budget(c.searches)}
+${c.lean ? "You are the Data Scout: you cover the company itself and its primary sources (the Market Scout and Field Scout cover markets and industry). Write dense, dated notes with sources." : ""}
 Build the committee's fact base for ${c.T}, starting from primary sources: the latest 10-K, 10-Q and 8-K, the earnings release and call transcript, investor-day or conference presentations, the proxy, any SEC comment-letter correspondence, and the government or regulatory databases in the sector playbook.
 ${c.hasDesk ? "The Data Desk already has prices, XBRL financials, Form 4s and filing diffs. Do not repeat them. Add what it cannot see." : "There is no Data Desk fact sheet this run, so also give a snapshot: price with timestamp, 52-week range, market cap, average volume, next earnings date (for an ETF: AUM, expense ratio, top holdings, flows)."}
 Cover:
@@ -236,6 +262,7 @@ P.recordBlocks = function (run, uptoStage, opts = {}) {
     if (run.profile.expertise) t += "\nMember expertise: " + run.profile.expertise;
     let budgetChars = 90000;
     for (const d of run.member.docs || []) {
+      if (run.lean && d.digest && !(opts.rawDocs && d.kind === "model/data")) { t += `\n\n--- MEMBER DOCUMENT (digest): ${d.name} (${d.kind}) ---\n${d.digest}`; continue; }
       if (!d.text) continue; const slice = d.text.slice(0, Math.min(30000, budgetChars)); budgetChars -= slice.length;
       t += `\n\n--- MEMBER DOCUMENT: ${d.name} (${d.kind}${d.text.length > slice.length ? ", truncated" : ""}) ---\n${slice}`;
       if (budgetChars <= 0) break;
@@ -247,6 +274,7 @@ P.recordBlocks = function (run, uptoStage, opts = {}) {
   seats.sort((a, b) => a.stage - b.stage);
   for (const s of seats) {
     const r = run.reports[s.id];
+    if (run.lean && !opts.full && !s.scout) { blocks.push({key: s.id, text: P.digest(s, r)}); continue; }
     let t = `### [STAGE ${s.stage} · ${s.name.toUpperCase()} — ${s.role}]\n${(r.text || "").trim()}`;
     if (opts.includeData && r.data) { const d = Object.assign({}, r.data); delete d.claims; t += "\nSTRUCTURED: " + JSON.stringify(d).slice(0, 3000); }
     blocks.push({key: s.id, text: t});
@@ -257,11 +285,24 @@ P.recordBlocks = function (run, uptoStage, opts = {}) {
   return blocks;
 };
 
+/* compact hand-off of an analyst's work for later stages (lean plans) */
+P.digest = function (seat, r) {
+  const d = r.data || {}, sc = PL_score(seat.id, d);
+  const fields = Object.assign({}, d); delete fields.claims; delete fields.summary; delete fields.data_gaps;
+  const claims = (d.claims || []).slice(0, 8).map(c => `- ${c.text}${c.as_of ? " (" + c.as_of + ")" : ""}${c.source_url ? " [" + c.source_url + "]" : ""}`).join("\n");
+  let t = `### [STAGE ${seat.stage} · ${seat.name.toUpperCase()} — summary]\n${d.summary || (r.text || "").slice(0, 700)}${sc != null ? "\nSelf-score: " + sc + "/10" : ""}`;
+  if (Object.keys(fields).length) t += "\nKey data: " + JSON.stringify(fields).slice(0, 1800);
+  if (claims) t += "\nKey claims:\n" + claims;
+  if (!d.summary) t += "\n(Excerpt of report:)\n" + (r.text || "").slice(0, 2500);
+  return t;
+};
+function PL_score(id, d) { const sc = AIC.SCHEMAS[id]; return sc && sc.score && U.isNum(d[sc.score]) ? d[sc.score] : null; }
+
 /* context for a seat task */
 P.seatContext = function (run, seat, extra = {}) {
   const fs = run.factsheet, pb = run.playbook || (fs && fs.playbook);
   const searches = extra.searches ?? 0;
-  const c = {T: run.ticker, searches, earnings: run.mode === "earnings", prior: !!run.prior, playbook: playbookText(pb),
+  const c = {T: run.ticker, searches, lean: !!run.lean, earnings: run.mode === "earnings", prior: !!run.prior, playbook: playbookText(pb),
     hasDesk: !!(fs && fs.status === "ok"), hasTech: !!(fs && fs.tech), diff: !!(fs && fs.filingDiff), tone: !!(fs && fs.transcripts),
     implied: fs && fs.reverseDcf && U.isNum(fs.reverseDcf.impliedGrowth) ? U.pct(fs.reverseDcf.impliedGrowth) + " annual growth (" + fs.reverseDcf.method + ")" : "",
     incRoic: fs && U.isNum(fs.incRoic) ? U.pct(fs.incRoic) : "", horizon: run.profile.horizon, dd: run.profile.dd};

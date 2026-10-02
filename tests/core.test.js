@@ -2,15 +2,22 @@
    Run: node tests/core.test.js */
 "use strict";
 const fs = require("fs"), path = require("path"), assert = require("assert");
-const {fixtureFor, anthropicSSE} = require("./mock");
+const {fixtureFor, anthropicSSE, batchMock} = require("./mock");
 const dir = path.join(__dirname, "../src/core");
 for (const f of fs.readdirSync(dir).sort()) eval(fs.readFileSync(path.join(dir, f), "utf8"));
 const A = globalThis.AIC, C = A.compute, U = A.util;
-let calls = {anthropic: 0, data: 0};
+let calls = {anthropic: 0, data: 0, models: {}};
+const BM = batchMock(1);
 globalThis.fetch = async (url, opts = {}) => {
+  if (/api\.anthropic\.com\/v1\/messages\/batches/.test(url)) {
+    const r = BM.handle(opts.method || "GET", new URL(url).pathname, opts.body);
+    if (opts.method === "POST" && opts.body) JSON.parse(opts.body).requests.forEach(q => calls.models[q.params.model] = (calls.models[q.params.model] || 0) + 1);
+    return r.json ? new Response(JSON.stringify(r.json), {status: r.status}) : new Response(r.text, {status: r.status});
+  }
   if (/api\.anthropic\.com/.test(url)) {
     calls.anthropic++;
     const body = JSON.parse(opts.body);
+    calls.models[body.model] = (calls.models[body.model] || 0) + 1;
     assert.ok(opts.headers["x-api-key"], "api key header");
     const sse = anthropicSSE(body);
     return new Response(new ReadableStream({start(c) { const enc = new TextEncoder(); for (let i = 0; i < sse.length; i += 700) c.enqueue(enc.encode(sse.slice(i, i + 700))); c.close(); }}), {status: 200, headers: {"content-type": "text/event-stream"}});
@@ -62,34 +69,83 @@ const ok = (name, cond, extra) => { console.log((cond ? "  ✓ " : "  ✗ ") + n
   ok("13G activity", fsheet.activism.length === 1);
   fs.writeFileSync(path.join(__dirname, "out-factsheet.md"), fsheet.markdown);
 
-  console.log("Full committee run (mocked Anthropic)");
-  const run = A.pipeline.newRun({ticker: "WTTR", mode: "full", profile: Object.assign({}, A.DEFAULT_PROFILE, {size: "250000"}), settings: A.DEFAULTS, engine: "api", member: {note: "Disposal permits are being cut in Reeves County.", docs: []}});
-  let updates = 0;
-  await A.pipeline.execute(run, {settings: Object.assign({}, A.DEFAULTS, {priceIn: "5", priceOut: "25", priceSearch: "10"}), apiKey: "sk-test", onUpdate: () => updates++,
+  console.log("Full committee run — Max plan (all Opus, instant)");
+  const run = A.pipeline.newRun({ticker: "WTTR", mode: "full", plan: "max", profile: Object.assign({}, A.DEFAULT_PROFILE, {size: "250000"}), settings: A.DEFAULTS, engine: "api", member: {note: "Disposal permits are being cut in Reeves County.", docs: []}});
+  let updates = 0; calls.models = {};
+  await A.pipeline.execute(run, {settings: A.DEFAULTS, apiKey: "sk-test", onUpdate: () => updates++,
     holdingsInfo: async () => ({text: "XOM 100 sh", corr: []}), calibrationNote: "Track record: 0 matured calls."});
   ok("run done", run.status === "done");
   const seats = run.seats.filter(id => !A.seat(id).code_only);
+  ok("no scouts on Max", !run.seats.includes("mscout") && !run.seats.includes("fscout"));
   ok("all seats done", seats.every(id => run.reports[id].status === "done"), seats.filter(id => run.reports[id].status !== "done").join(","));
-  ok("structured data on every LLM seat", seats.filter(id => id !== "rebuttal").every(id => run.reports[id].data), seats.filter(id => id !== "rebuttal" && !run.reports[id].data).join(","));
-  ok("forced submit_report follow-up worked (Data Hunter)", run.reports.hunter.data && run.reports.hunter.data.score_fundamentals != null);
+  ok("structured data on every LLM seat (JSON block)", seats.filter(id => id !== "rebuttal").every(id => run.reports[id].data), seats.filter(id => id !== "rebuttal" && !run.reports[id].data).join(","));
+  ok("missing JSON repaired by the helper model (Data Hunter)", run.reports.hunter.data && run.reports.hunter.data.score_fundamentals === 7 && calls.models["claude-haiku-4-5-20251001"] >= 1);
+  ok("JSON block hidden from report text", !/```json/.test(run.reports.cio.text));
   ok("rebuttals ran for critiqued seats", run.rebuttals.length === 2 && run.rebuttals.every(r => r.status === "done"), run.rebuttals.map(r => r.seat).join(","));
-  ok("revised score applied", run.reports.hunter.data._original_score === 7 || run.reports.hunter.data.score_fundamentals === 7);
   ok("CIO derived EV", run.evm && U.isNum(run.evm.ev), run.evm && run.evm.ev.toFixed(2));
   ok("formula score", run.cio.formula === 7);
   ok("ledger contradictions found (pe_ttm)", run.ledger.contradictions.some(c => c.metric === "pe_ttm"), run.ledger.contradictions.map(c => c.metric + ":" + c.kind).join(","));
   ok("sizing computed", run.sizing && U.isNum(run.sizing.atrStop), run.sizing && run.sizing.suggestedStop.toFixed(2));
   ok("usage + cache tracked", run.usage && run.usage.cacheRead > 0 && run.usage.searches > 0, JSON.stringify(run.usage));
-  ok("cost estimate", U.costOf(run.usage, {priceIn: 5, priceOut: 25, priceSearch: 10}) > 0, U.costOf(run.usage, {priceIn: 5, priceOut: 25, priceSearch: 10}).toFixed(3));
+  ok("cost computed from built-in prices", run.cost > 0, "$" + run.cost.toFixed(3));
+  ok("all Opus on Max", Object.keys(calls.models).filter(m => m !== "claude-haiku-4-5-20251001").every(m => m === "claude-opus-5-5"), JSON.stringify(calls.models));
   ok("sources captured", run.reports.scout.sources.length > 0);
   ok("updates fired", updates > 20, updates);
-  const lean = A.pipeline.lean(run); ok("lean computed", lean.side === "LONG", lean.avg);
-  // parallelism: stage 3 seats overlap in time — verified indirectly by call count
-  ok("anthropic calls", calls.anthropic >= 19, calls.anthropic);
+  const maxCost = run.cost;
 
-  console.log("Budget guard");
-  const run2 = A.pipeline.newRun({ticker: "WTTR", mode: "quick", profile: A.DEFAULT_PROFILE, settings: A.DEFAULTS, engine: "api"});
-  try { await A.pipeline.execute(run2, {settings: Object.assign({}, A.DEFAULTS, {priceIn: "5", priceOut: "25", budget: "0.01"}), apiKey: "k"}); ok("budget stop", false); }
-  catch (e) { ok("budget stop", e.code === "budget", e.message.slice(0, 60)); }
+  console.log("Full committee — Balanced plan (lean, instant)");
+  calls.models = {};
+  const docText = "Water volume model. ".repeat(600);
+  const runB = A.pipeline.newRun({ticker: "WTTR", mode: "full", plan: "balanced", profile: A.DEFAULT_PROFILE, settings: A.DEFAULTS, engine: "api", member: {note: "n", docs: [{name: "model.xlsx", kind: "model/data", text: docText}]}});
+  const dcache = new Map();
+  await A.pipeline.execute(runB, {settings: A.DEFAULTS, apiKey: "k", digestCache: {get: k => dcache.get(k), set: (k, v) => dcache.set(k, v)}, holdingsInfo: async () => null});
+  ok("balanced done", runB.status === "done", runB.seats.filter(id => !["done", "skipped"].includes(runB.reports[id].status)).join(","));
+  ok("three scouts added", ["scout", "mscout", "fscout"].every(id => runB.seats.includes(id)));
+  ok("only scouts search", runB.seats.filter(id => (runB.reports[id].usage?.searches || 0) > 0).every(id => A.seat(id).scout), runB.seats.filter(id => (runB.reports[id].usage?.searches || 0) > 0).join(","));
+  ok("judges on Opus, analysts on Sonnet", runB.reports.cio.model === "claude-opus-5-5" && runB.reports.devil.model === "claude-opus-5-5" && runB.reports.macro.model === "claude-sonnet-5-5", JSON.stringify(calls.models));
+  ok("document digested once with the helper", runB.member.docs[0].digest && /DIGEST/.test(runB.member.docs[0].digest) && dcache.size === 1);
+  ok("Bull skipped when clearly bullish (avg≥7) or ran", ["done", "skipped"].includes(runB.reports.bull.status), runB.reports.bull.status);
+  ok("lean rebuttals: high severity only", runB.rebuttals.length === 1 && runB.rebuttals[0].severity === "high", runB.rebuttals.map(r => r.seat + ":" + r.severity).join(","));
+  const recB = A.prompts.recordBlocks(runB, 8, {full: false}).map(b => b.text).join("\n");
+  ok("later seats get summaries; only scouts' notes go in full", /summary\]/.test(recB) && (recB.match(/mock report/g) || []).length === 3, (recB.match(/mock report/g) || []).length + " full reports in record");
+  ok("Balanced cheaper than Max", runB.cost < maxCost, `$${runB.cost.toFixed(3)} vs $${maxCost.toFixed(3)}`);
+
+  console.log("Full committee — Saver plan (Batch API, resumable)");
+  calls.models = {};
+  const runS = A.pipeline.newRun({ticker: "WTTR", mode: "full", plan: "saver", profile: A.DEFAULT_PROFILE, settings: A.DEFAULTS, engine: "api"});
+  let saves = 0, deferrals = 0;
+  const hooksS = {settings: A.DEFAULTS, apiKey: "k", defer: true, save: async () => saves++, holdingsInfo: async () => null,
+    findRecent: async (t, o) => o.need === "desk" ? null : null};
+  for (let i = 0; i < 40 && runS.status !== "done"; i++) {
+    try { await A.pipeline.execute(runS, hooksS); }
+    catch (e) { if (e.code === "deferred") { deferrals++; continue; } throw e; }
+  }
+  ok("saver finished through deferred resumes", runS.status === "done", `${deferrals} deferrals, ${BM.stats.created} batches`);
+  ok("batch per stage, not per seat", BM.stats.created < runS.seats.length, `${BM.stats.created} batches for ${runS.seats.length} seats`);
+  ok("batch state persisted between resumes", saves > 5, saves);
+  ok("Saver about half of Balanced on tokens", runS.cost < runB.cost * 0.75, `$${runS.cost.toFixed(3)} vs $${runB.cost.toFixed(3)}`);
+
+  console.log("Reuse within 72 h");
+  calls.models = {};
+  const before = Object.values(calls.models).reduce((a, b) => a + b, 0);
+  const runR = A.pipeline.newRun({ticker: "WTTR", mode: "standard", plan: "balanced", profile: A.DEFAULT_PROFILE, settings: A.DEFAULTS, engine: "api"});
+  await A.pipeline.execute(runR, {settings: A.DEFAULTS, apiKey: "k", findRecent: async (t, o) => runB, holdingsInfo: async () => null});
+  ok("Data Desk and scouts reused", runR.reports.desk.reused && runR.reports.scout.reused && runR.reports.mscout.reused, Object.keys(runR.reports).filter(k => runR.reports[k].reused).join(","));
+  ok("reused seats cost nothing", !runR.reports.scout.usage);
+
+  console.log("Estimates");
+  const eMax = A.pipeline.estimate({mode: "full", plan: "max", settings: A.DEFAULTS}), eBal = A.pipeline.estimate({mode: "full", plan: "balanced", settings: A.DEFAULTS}), eSav = A.pipeline.estimate({mode: "full", plan: "saver", settings: A.DEFAULTS});
+  ok("estimates ordered Max > Balanced > Saver", eMax.cost > eBal.cost && eBal.cost > eSav.cost, `$${eMax.cost.toFixed(2)} / $${eBal.cost.toFixed(2)} / $${eSav.cost.toFixed(2)}`);
+
+  console.log("Per-run cap");
+  const run2 = A.pipeline.newRun({ticker: "WTTR", mode: "quick", plan: "max", profile: A.DEFAULT_PROFILE, settings: A.DEFAULTS, engine: "api"});
+  try { await A.pipeline.execute(run2, {settings: Object.assign({}, A.DEFAULTS, {runCap: "0.01"}), apiKey: "k"}); ok("cap stop", false); }
+  catch (e) { ok("cap stop", e.code === "budget", e.message.slice(0, 60)); }
+
+  console.log("Screen mode");
+  const runSc = A.pipeline.newRun({ticker: "WTTR", mode: "screen", plan: "balanced", profile: A.DEFAULT_PROFILE, settings: A.DEFAULTS, engine: "api"});
+  await A.pipeline.execute(runSc, {settings: A.DEFAULTS, apiKey: "k"});
+  ok("screen gives a call", runSc.reports.screen.data && runSc.reports.screen.data.call === "PROMISING", runSc.seats.join(","));
 
   console.log("Features");
   const ideas = await A.features.ideaHunt({engine: "api", settings: A.DEFAULTS, apiKey: "k"}); ok("idea hunt", ideas.data.ideas.length === 1);
