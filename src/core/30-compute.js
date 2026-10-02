@@ -507,6 +507,8 @@ const FS_METRIC = fs => {
     roic: isN(y.roic) ? y.roic * 100 : null, net_debt_ebitda: y.netDebtEbitda, rsi14: t.rsi14, mfi14: t.mfi14, ma20: t.ma20, ma50: t.ma50, ma200: t.ma200, atr14: t.atr14,
     high_52w: t.high52, low_52w: t.low52, implied_growth: isN(fs.reverseDcf?.impliedGrowth) ? fs.reverseDcf.impliedGrowth * 100 : null};
 };
+const ANNUAL_KEYS = ["revenue_growth", "gross_margin", "op_margin", "roic", "net_debt_ebitda"];
+const refAsOf = (fs, k) => { const y = (fs?.yearMetrics || []).slice(-1)[0]; return ANNUAL_KEYS.includes(k) && y ? "FY" + y.fy : fs?.tech?.date || ""; };
 C.ledger = function (run) {
   const claims = [];
   for (const id in run.reports) { const r = run.reports[id]; (r.data?.claims || []).forEach(c => claims.push(Object.assign({seat: id}, c))); }
@@ -514,12 +516,21 @@ C.ledger = function (run) {
   const groups = {};
   claims.forEach(c => { if (c.metric && isN(c.value)) { const k = String(c.metric).toLowerCase().replace(/[^a-z0-9_]/g, ""); (groups[k] = groups[k] || []).push(c); } });
   const contradictions = [];
+  /* Units: one seat may write 2.77B as 2770000000, another as 2770 ($ millions) or 2.77 ($ billions); a margin may be 0.58 or 58.
+     Before comparing, bring each value to the anchor's scale by a power of 1,000 (or ×100 for percentages) when that is what makes them agree. */
+  const align = (v, anchor, k) => {
+    if (!isN(v) || !isN(anchor) || v === 0 || anchor === 0 || Math.sign(v) !== Math.sign(anchor)) return v;
+    const fs = [1, 1e3, 1e6, 1e9, 1e-3, 1e-6, 1e-9].concat(/margin|growth|yield|roic|roe|pct|percent|rate|share/.test(k) ? [100, 0.01] : []);
+    let best = 1, bd = Infinity; for (const f of fs) { const d = Math.abs(Math.log(Math.abs(v * f / anchor))); if (d < bd - 1e-9) { bd = d; best = f; } }
+    return best !== 1 && bd < Math.log(3) ? v * best : v;
+  };
   const off = (a, b) => { if (!isN(a) || !isN(b)) return false; if (a === 0 || b === 0) return Math.abs(a - b) > 1; const r = Math.abs(a) > Math.abs(b) ? a / b : b / a; return r > 1.15 || r < 0; };
   for (const k in groups) {
-    const g = groups[k]; const vals = g.map(c => c.value);
+    const anchor = isN(ref[k]) ? ref[k] : groups[k][0].value;
+    const g = groups[k].map(c => { const v = align(c.value, anchor, k); return v === c.value ? c : Object.assign({}, c, {value: v, raw: c.value}); }); const vals = g.map(c => c.value);
     const mn = Math.min(...vals), mx = Math.max(...vals);
-    if (g.length > 1 && off(mn, mx)) contradictions.push({metric: k, kind: "between seats", items: g.map(c => ({seat: c.seat, value: c.value, as_of: c.as_of}))});
-    if (isN(ref[k])) { const bad = g.filter(c => off(c.value, ref[k])); if (bad.length) contradictions.push({metric: k, kind: "vs Data Desk", reference: ref[k], items: bad.map(c => ({seat: c.seat, value: c.value, as_of: c.as_of}))}); }
+    if (g.length > 1 && off(mn, mx)) contradictions.push({metric: k, kind: "between seats", items: g.map(c => ({seat: c.seat, value: c.value, raw: c.raw, as_of: c.as_of}))});
+    if (isN(ref[k])) { const bad = g.filter(c => off(c.value, ref[k])); if (bad.length) contradictions.push({metric: k, kind: "vs Data Desk", reference: ref[k], refAsOf: refAsOf(run.factsheet, k), items: bad.map(c => ({seat: c.seat, value: c.value, raw: c.raw, as_of: c.as_of}))}); }
   }
   const uncited = {};
   claims.forEach(c => { if ((c.source_type === "primary" || c.source_type === "secondary") && !c.source_url) uncited[c.seat] = (uncited[c.seat] || 0) + 1; });

@@ -399,12 +399,17 @@ section+section{margin-top:22px}
 .seat[data-st="waiting"] .state{color:var(--warn)}
 .seat[data-st="skipped"]{opacity:.55}
 details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px}
+.depths{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+.depths .lbl{margin-right:4px}
+.depth-opt{padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);color:var(--fg-2);cursor:pointer;font:inherit;font-size:13px}
+.depth-opt[aria-checked="true"]{border-color:var(--accent);color:var(--fg);box-shadow:inset 0 0 0 1px var(--accent)}
+.depth-opt:disabled{opacity:.55;cursor:default}
 </style>
 <script>try{var t=localStorage.getItem("aic6.theme");t=t?JSON.parse(t):"dark";if(t==="light"||(t==="system"&&matchMedia("(prefers-color-scheme: light)").matches))document.documentElement.classList.add("theme-light")}catch(e){}</script>
 <header class="mast">
   <div class="wrap">
     <div class="brand">
-      <div class="eyebrow" id="eyebrow">Private · Alpha Fund · v6.0.3</div>
+      <div class="eyebrow" id="eyebrow">Private · Alpha Fund · v6.0.4</div>
       <h1>AI Investment Committee</h1>
     </div>
     <span id="headChip" class="chip" hidden></span>
@@ -417,7 +422,7 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
       <button data-view="history" id="navHistory" class="hist">History (0)</button>
       <button data-view="lab">Lab</button>
       <button data-view="settings">⚙ Settings</button>
-      <button id="navTheme" class="theme-btn" type="button" title="Switch between light and dark screens">☀ Light</button>
+      <button id="navTheme" class="theme-btn" type="button" title="Dark screen is on — click for light">☾ Dark</button>
       <button id="navPdf" class="pdf" title="Print or save the current analysis">PDF</button>
     </nav>
   </div>
@@ -439,6 +444,7 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
       </form>
       <div class="hint" id="modeNote"></div>
       <div class="plans" id="planBox" role="radiogroup" aria-label="Cost plan"></div>
+      <div class="depths" id="depthBox" role="radiogroup" aria-label="Web search depth"></div>
       <div class="hint est" id="estLine"></div>
       <details class="member" id="memberBox">
         <summary><span class="lbl">Member's note &amp; documents</span> <span class="muted small" id="memberCount">empty</span></summary>
@@ -507,7 +513,7 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
 "use strict";
 const AIC = G.AIC = G.AIC || {};
 
-AIC.VERSION = "6.0.3";
+AIC.VERSION = "6.0.4";
 AIC.PROMPT_VERSION = "p6.3";
 
 AIC.DEFAULTS = {
@@ -1575,6 +1581,8 @@ const FS_METRIC = fs => {
     roic: isN(y.roic) ? y.roic * 100 : null, net_debt_ebitda: y.netDebtEbitda, rsi14: t.rsi14, mfi14: t.mfi14, ma20: t.ma20, ma50: t.ma50, ma200: t.ma200, atr14: t.atr14,
     high_52w: t.high52, low_52w: t.low52, implied_growth: isN(fs.reverseDcf?.impliedGrowth) ? fs.reverseDcf.impliedGrowth * 100 : null};
 };
+const ANNUAL_KEYS = ["revenue_growth", "gross_margin", "op_margin", "roic", "net_debt_ebitda"];
+const refAsOf = (fs, k) => { const y = (fs?.yearMetrics || []).slice(-1)[0]; return ANNUAL_KEYS.includes(k) && y ? "FY" + y.fy : fs?.tech?.date || ""; };
 C.ledger = function (run) {
   const claims = [];
   for (const id in run.reports) { const r = run.reports[id]; (r.data?.claims || []).forEach(c => claims.push(Object.assign({seat: id}, c))); }
@@ -1582,12 +1590,21 @@ C.ledger = function (run) {
   const groups = {};
   claims.forEach(c => { if (c.metric && isN(c.value)) { const k = String(c.metric).toLowerCase().replace(/[^a-z0-9_]/g, ""); (groups[k] = groups[k] || []).push(c); } });
   const contradictions = [];
+  /* Units: one seat may write 2.77B as 2770000000, another as 2770 ($ millions) or 2.77 ($ billions); a margin may be 0.58 or 58.
+     Before comparing, bring each value to the anchor's scale by a power of 1,000 (or ×100 for percentages) when that is what makes them agree. */
+  const align = (v, anchor, k) => {
+    if (!isN(v) || !isN(anchor) || v === 0 || anchor === 0 || Math.sign(v) !== Math.sign(anchor)) return v;
+    const fs = [1, 1e3, 1e6, 1e9, 1e-3, 1e-6, 1e-9].concat(/margin|growth|yield|roic|roe|pct|percent|rate|share/.test(k) ? [100, 0.01] : []);
+    let best = 1, bd = Infinity; for (const f of fs) { const d = Math.abs(Math.log(Math.abs(v * f / anchor))); if (d < bd - 1e-9) { bd = d; best = f; } }
+    return best !== 1 && bd < Math.log(3) ? v * best : v;
+  };
   const off = (a, b) => { if (!isN(a) || !isN(b)) return false; if (a === 0 || b === 0) return Math.abs(a - b) > 1; const r = Math.abs(a) > Math.abs(b) ? a / b : b / a; return r > 1.15 || r < 0; };
   for (const k in groups) {
-    const g = groups[k]; const vals = g.map(c => c.value);
+    const anchor = isN(ref[k]) ? ref[k] : groups[k][0].value;
+    const g = groups[k].map(c => { const v = align(c.value, anchor, k); return v === c.value ? c : Object.assign({}, c, {value: v, raw: c.value}); }); const vals = g.map(c => c.value);
     const mn = Math.min(...vals), mx = Math.max(...vals);
-    if (g.length > 1 && off(mn, mx)) contradictions.push({metric: k, kind: "between seats", items: g.map(c => ({seat: c.seat, value: c.value, as_of: c.as_of}))});
-    if (isN(ref[k])) { const bad = g.filter(c => off(c.value, ref[k])); if (bad.length) contradictions.push({metric: k, kind: "vs Data Desk", reference: ref[k], items: bad.map(c => ({seat: c.seat, value: c.value, as_of: c.as_of}))}); }
+    if (g.length > 1 && off(mn, mx)) contradictions.push({metric: k, kind: "between seats", items: g.map(c => ({seat: c.seat, value: c.value, raw: c.raw, as_of: c.as_of}))});
+    if (isN(ref[k])) { const bad = g.filter(c => off(c.value, ref[k])); if (bad.length) contradictions.push({metric: k, kind: "vs Data Desk", reference: ref[k], refAsOf: refAsOf(run.factsheet, k), items: bad.map(c => ({seat: c.seat, value: c.value, raw: c.raw, as_of: c.as_of}))}); }
   }
   const uncited = {};
   claims.forEach(c => { if ((c.source_type === "primary" || c.source_type === "secondary") && !c.source_url) uncited[c.seat] = (uncited[c.seat] || 0) + 1; });
@@ -1857,7 +1874,7 @@ House rules:
 
 Output protocol:
 1. Write your report in Markdown, with short headers and tables where useful.
-2. End with one fenced \`\`\`json block holding the structured fields listed in your task. In "claims", list your most decision-relevant factual claims. When a claim is a number, set "metric" using these keys where they fit: ${AIC.METRIC_KEYS.join(", ")}. Percentages are plain numbers (12.5 means 12.5%). Set source_type honestly.
+2. End with one fenced \`\`\`json block holding the structured fields listed in your task. In "claims", list your most decision-relevant factual claims. When a claim is a number, set "metric" using these keys where they fit: ${AIC.METRIC_KEYS.join(", ")}. Percentages are plain numbers (12.5 means 12.5%). Money amounts are whole dollars (a $2.77 billion market cap is 2770000000, not 2770 or 2.77). Set source_type honestly.
 ${run.lean ? "\nResearch: on this plan the Scouts do the committee's web research. Their notes (stage 1) are your evidence; unless your task gives you a search budget, do not search. Earlier analysts appear as summaries with their key data." : ""}`;
 };
 
@@ -2468,6 +2485,7 @@ PL.newRun = function ({ticker, mode, profile, settings, prior, member, engine, p
   seats.forEach(id => reports[id] = {status: "queued", text: "", data: null, sources: [], searches: [], usage: null, ms: 0});
   const P_ = AIC.PLANS[plan];
   return {id: U.uid(), ticker, createdAt: Date.now(), mode, seats, engine, plan, lean: !!P_.lean && engine === "api", batch: !!P_.batch && engine === "api",
+    searchDepth: +settings.searchDepth,
     model: engine === "claude" ? "claude.ai · most capable tier" : (P_.lean ? `${AIC.PLANS[plan].label}: Opus 5.5 judges + Sonnet 5.5 analysts` : settings.judgeModel || settings.model),
     promptVersion: AIC.PROMPT_VERSION, appVersion: AIC.VERSION,
     profile: Object.assign({}, profile), member: member || {note: "", docs: []},
@@ -2592,6 +2610,8 @@ const hashStr = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h 
    hooks: {settings, apiKey, signal, onUpdate(run, seatId, kind), save(run), defer, calibrationNote, holdingsInfo(run),
            findRecent(ticker, {maxAgeH, need}) -> run, digestCache {get(k), set(k, v)}} */
 PL.execute = async function (run, hooks) {
+  // the search depth chosen when the run started stays with the run (resumes and batches use it too)
+  if (isN(run.searchDepth) && run.searchDepth !== +hooks.settings.searchDepth) hooks = Object.assign({}, hooks, {settings: Object.assign({}, hooks.settings, {searchDepth: run.searchDepth})});
   const st = hooks.settings, upd = hooks.onUpdate || (() => {});
   run.status = "running";
   const system = P.houseRules(run.engine, run.ticker, run);
@@ -3012,12 +3032,13 @@ const Cost = {
   addExtra(usage) { if (!usage || !U.isNum(usage.cost)) return; const m = Cost.month(), x = LS.get("extraSpend", {}); x[m] = (x[m] || 0) + usage.cost; LS.set("extraSpend", x); },
   learn(run) { // remember what each seat really cost on each plan, so estimates get better over time
     if (run.status !== "done" || !run.plan || run.engine !== "api") return;
-    const st = LS.get("coststats", {}); const P_ = st[run.plan] = st[run.plan] || {};
+    const st = LS.get("coststats", {}), key = Cost.key(run.plan, run.searchDepth ?? S.settings.searchDepth); const P_ = st[key] = st[key] || {};
     for (const id of run.seats) { const r = run.reports[id]; if (!r || r.reused || !r.usage || !U.isNum(r.usage.cost)) continue;
       const h = P_[id] = P_[id] || {n: 0, avg: 0}; const n = Math.min(h.n, 9); h.avg = (h.avg * n + r.usage.cost) / (n + 1); h.n++; }
     LS.set("coststats", st);
   },
-  estimate(mode, plan) { return PL.estimate({mode, plan, settings: S.settings, stats: LS.get("coststats", {})}); },
+  key: (plan, depth) => `${plan}@${+depth}`, // estimates learn per plan and search depth
+  estimate(mode, plan) { const st = LS.get("coststats", {}); return PL.estimate({mode, plan, settings: S.settings, stats: {[plan]: st[Cost.key(plan, S.settings.searchDepth)]}}); },
   budgetLeft() { const b = U.num(S.settings.monthlyBudget); return U.isNum(b) && b > 0 ? b - Cost.spentThisMonth() : null; }
 };
 
@@ -3028,7 +3049,10 @@ const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const fmtDate = ts => { const d = new Date(ts); return d.toLocaleDateString(undefined, {month: "numeric", day: "numeric", year: "numeric"}) + " · " + d.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"}); };
 const fmtK = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n || 0);
-const secs = ms => (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + "s";
+/* durations: 4.2s · 45s · 3m 07s · 1h 05m 12s */
+const secs = ms => { ms = Math.max(0, +ms || 0); if (ms < 10000) return (ms / 1000).toFixed(1) + "s";
+  const t = Math.round(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60, p = n => String(n).padStart(2, "0");
+  return h ? `${h}h ${p(m)}m ${p(s)}s` : m ? `${m}m ${p(s)}s` : `${s}s`; };
 const pct = (x, d = 1) => U.isNum(x) ? (x * 100).toFixed(d) + "%" : "–";
 const spct = (x, d = 1) => U.isNum(x) ? (x >= 0 ? "+" : "") + (x * 100).toFixed(d) + "%" : "–";
 const n2 = (x, d = 2) => U.isNum(x) ? U.fmtNum(x, d) : "–";
@@ -3202,8 +3226,12 @@ function renderConsole() {
 }
 
 function renderPlans() {
-  const box = $("#planBox"), est = $("#estLine"), show = S.engine === "api";
-  box.hidden = est.hidden = !show; if (!show) return;
+  const box = $("#planBox"), est = $("#estLine"), dbox = $("#depthBox"), show = S.engine === "api";
+  box.hidden = est.hidden = dbox.hidden = !show; if (!show) return;
+  const dep = +S.settings.searchDepth;
+  const DEPTHS = [["0.5", "Light", "fewer searches · cheapest"], ["1", "Standard", "balanced"], ["1.5", "Deep", "most searches · most thorough"]];
+  dbox.innerHTML = `<span class="lbl">Web search</span>` + DEPTHS.map(([v, l, t]) => `<button type="button" role="radio" class="depth-opt" data-depth="${v}" aria-checked="${dep === +v}" title="${t}" ${S.running ? "disabled" : ""}>${l}</button>`).join("")
+    + `<span class="small muted">${dep ? (A.PLANS[S.plan]?.lean ? "the three Scouts search for the whole committee" : "every research seat searches") : "search is off (Settings → Cost & models → Advanced)"}</span>`;
   box.innerHTML = Object.entries(A.PLANS).map(([k, p]) => `<button type="button" role="radio" class="plan-opt" data-plan="${k}" aria-checked="${S.plan === k}" ${S.running ? "disabled" : ""}><b>${esc(p.label)}</b><span>${esc(p.short)}</span></button>`).join("");
   const e = Cost.estimate(S.mode, S.plan), spent = Cost.spentThisMonth(), b = U.num(S.settings.monthlyBudget);
   est.innerHTML = `Estimated <b class="num">≈ $${e.cost.toFixed(2)}</b> for this run · ${esc(e.minutes)} · spent this month <b class="num">$${spent.toFixed(2)}</b>${U.isNum(b) && b > 0 ? ` of $${b.toFixed(0)}` : ""}${S.plan === "saver" ? ` · <span class="muted">you can close the tab while it waits — it picks up when you come back</span>` : ""}`;
@@ -3504,7 +3532,7 @@ function evidenceHtml(run) {
       <div class="tile ${L.contradictions.length ? "flagged" : ""}"><span>Contradictions</span><b class="num">${L.contradictions.length}</b></div><div class="tile"><span>Uncited "sourced" claims</span><b class="num">${Object.values(L.uncited).reduce((a, b) => a + b, 0)}</b></div>
       ${dq ? `<div class="tile"><span>Scout data quality</span><b>${esc(dq)}</b></div>` : ""}</div>
       ${Object.keys(L.types).length ? `<p class="small muted">By source type: ${Object.entries(L.types).map(([k, v]) => `${esc(k)} ${v}`).join(" · ")}</p>` : ""}</div>
-    ${L.contradictions.length ? `<div class="card"><h3 class="h3">Contradictions found in code</h3><ul class="contra">${L.contradictions.map(c => `<li><b>${esc(c.metric)}</b> <span class="muted small">${esc(c.kind)}</span>${U.isNum(c.reference) ? ` · Data Desk <b class="num">${n2(c.reference)}</b>` : ""}: ${c.items.map(i => `${esc(A.seat(i.seat)?.name || i.seat)} <b class="num">${n2(i.value)}</b>${i.as_of ? ` <span class="muted small">(${esc(i.as_of)})</span>` : ""}`).join(" · ")}</li>`).join("")}</ul></div>` : ""}
+    ${L.contradictions.length ? `<div class="card"><h3 class="h3">Contradictions found in code</h3><ul class="contra">${L.contradictions.map(c => `<li><b>${esc(c.metric)}</b> <span class="muted small">${esc(c.kind)}</span>${U.isNum(c.reference) ? ` · Data Desk <b class="num">${n2(c.reference)}</b>${c.refAsOf ? ` <span class="muted small">(${esc(c.refAsOf)})</span>` : ""}` : ""}: ${c.items.map(i => `${esc(A.seat(i.seat)?.name || i.seat)} <b class="num">${n2(i.value)}</b>${U.isNum(i.raw) ? ` <span class="muted small">written as ${esc(String(i.raw))}</span>` : ""}${i.as_of ? ` <span class="muted small">(${esc(i.as_of)})</span>` : ""}`).join(" · ")}</li>`).join("")}</ul></div>` : ""}
     <div class="card"><div class="sechead"><h3 class="h3">Claims ledger</h3>
       <select class="field small" id="lfSeat" aria-label="Filter by seat"><option value="">All seats</option>${seats.map(s => `<option value="${s}" ${f.seat === s ? "selected" : ""}>${esc(A.seat(s)?.name || s)}</option>`).join("")}</select>
       <select class="field small" id="lfType" aria-label="Filter by source type"><option value="">All sources</option>${["primary", "secondary", "computed", "estimate", "member", "model_knowledge"].map(s => `<option ${f.type === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
@@ -4164,7 +4192,7 @@ function updateNav() {
   else if (S.run) { hc.hidden = false; hc.style.color = "var(--fg-2)"; hc.textContent = `${S.run.ticker} · ${S.running ? "in session" : S.run.status}`; }
   else hc.hidden = true;
   const bgN = Object.keys(S.bg).length;
-  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6.0.3 · Claude · knowledge mode" : `Private · Alpha Fund · v6.0.3 · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
+  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6.0.4 · Claude · knowledge mode" : `Private · Alpha Fund · v6.0.4 · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
 }
 function renderView() {
   if (S.view === "discover") renderDiscover(); else if (S.view === "compare") renderCompare(); else if (S.view === "portfolio") renderPortfolio();
@@ -4185,7 +4213,7 @@ function themeIsLight(t) { return t === "light" || (t === "system" && window.mat
 function applyTheme() {
   const t = LS.get("theme", "dark"), light = themeIsLight(t);
   document.documentElement.classList.toggle("theme-light", light);
-  const b = $("#navTheme"); if (b) { b.textContent = light ? "☾ Dark" : "☀ Light"; b.setAttribute("aria-label", light ? "Switch to dark screen" : "Switch to light screen"); }
+  const b = $("#navTheme"); if (b) { b.textContent = light ? "☀ Light" : "☾ Dark"; b.title = light ? "Light screen is on — click for dark" : "Dark screen is on — click for light"; b.setAttribute("aria-label", b.title); }
 }
 function setTheme(t) { LS.set("theme", t); applyTheme(); if (S.view === "analysis" && S.tab === "chart") renderTabs(); }
 try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (LS.get("theme", "dark") === "system") applyTheme(); }); } catch {}
@@ -4216,6 +4244,7 @@ function bind() {
     const d = t.dataset;
     if (t.classList.contains("seat") && d.id && S.run) { if (S.run.reports[d.id]?.status === "queued") return; S.tab = "minutes"; S.open[d.id] = true; renderTabs(); document.getElementById("rep-" + d.id)?.scrollIntoView({behavior: "smooth", block: "start"}); return; }
     if (t.matches(".rep>header[data-id]") || (t.closest(".rep>header[data-id]") && t.tagName !== "BUTTON")) return; // handled below
+    if (d.depth && !S.running) { S.settings.searchDepth = +d.depth; LS.set("settings", S.settings); renderConsole(); updateNav(); return; }
     if (d.plan && !S.running) { S.plan = d.plan; LS.set("plan", S.plan); renderConsole(); renderEngine(); updateNav(); return; }
     if (d.tab) { S.tab = d.tab; renderTabs(); return; }
     if (d.goto) { S.tab = d.goto; renderTabs(); return; }

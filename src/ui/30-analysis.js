@@ -21,8 +21,12 @@ function renderConsole() {
 }
 
 function renderPlans() {
-  const box = $("#planBox"), est = $("#estLine"), show = S.engine === "api";
-  box.hidden = est.hidden = !show; if (!show) return;
+  const box = $("#planBox"), est = $("#estLine"), dbox = $("#depthBox"), show = S.engine === "api";
+  box.hidden = est.hidden = dbox.hidden = !show; if (!show) return;
+  const dep = +S.settings.searchDepth;
+  const DEPTHS = [["0.5", "Light", "fewer searches · cheapest"], ["1", "Standard", "balanced"], ["1.5", "Deep", "most searches · most thorough"]];
+  dbox.innerHTML = `<span class="lbl">Web search</span>` + DEPTHS.map(([v, l, t]) => `<button type="button" role="radio" class="depth-opt" data-depth="${v}" aria-checked="${dep === +v}" title="${t}" ${S.running ? "disabled" : ""}>${l}</button>`).join("")
+    + `<span class="small muted">${dep ? (A.PLANS[S.plan]?.lean ? "the three Scouts search for the whole committee" : "every research seat searches") : "search is off (Settings → Cost & models → Advanced)"}</span>`;
   box.innerHTML = Object.entries(A.PLANS).map(([k, p]) => `<button type="button" role="radio" class="plan-opt" data-plan="${k}" aria-checked="${S.plan === k}" ${S.running ? "disabled" : ""}><b>${esc(p.label)}</b><span>${esc(p.short)}</span></button>`).join("");
   const e = Cost.estimate(S.mode, S.plan), spent = Cost.spentThisMonth(), b = U.num(S.settings.monthlyBudget);
   est.innerHTML = `Estimated <b class="num">≈ $${e.cost.toFixed(2)}</b> for this run · ${esc(e.minutes)} · spent this month <b class="num">$${spent.toFixed(2)}</b>${U.isNum(b) && b > 0 ? ` of $${b.toFixed(0)}` : ""}${S.plan === "saver" ? ` · <span class="muted">you can close the tab while it waits — it picks up when you come back</span>` : ""}`;
@@ -323,7 +327,7 @@ function evidenceHtml(run) {
       <div class="tile ${L.contradictions.length ? "flagged" : ""}"><span>Contradictions</span><b class="num">${L.contradictions.length}</b></div><div class="tile"><span>Uncited "sourced" claims</span><b class="num">${Object.values(L.uncited).reduce((a, b) => a + b, 0)}</b></div>
       ${dq ? `<div class="tile"><span>Scout data quality</span><b>${esc(dq)}</b></div>` : ""}</div>
       ${Object.keys(L.types).length ? `<p class="small muted">By source type: ${Object.entries(L.types).map(([k, v]) => `${esc(k)} ${v}`).join(" · ")}</p>` : ""}</div>
-    ${L.contradictions.length ? `<div class="card"><h3 class="h3">Contradictions found in code</h3><ul class="contra">${L.contradictions.map(c => `<li><b>${esc(c.metric)}</b> <span class="muted small">${esc(c.kind)}</span>${U.isNum(c.reference) ? ` · Data Desk <b class="num">${n2(c.reference)}</b>` : ""}: ${c.items.map(i => `${esc(A.seat(i.seat)?.name || i.seat)} <b class="num">${n2(i.value)}</b>${i.as_of ? ` <span class="muted small">(${esc(i.as_of)})</span>` : ""}`).join(" · ")}</li>`).join("")}</ul></div>` : ""}
+    ${L.contradictions.length ? `<div class="card"><h3 class="h3">Contradictions found in code</h3><ul class="contra">${L.contradictions.map(c => `<li><b>${esc(c.metric)}</b> <span class="muted small">${esc(c.kind)}</span>${U.isNum(c.reference) ? ` · Data Desk <b class="num">${n2(c.reference)}</b>${c.refAsOf ? ` <span class="muted small">(${esc(c.refAsOf)})</span>` : ""}` : ""}: ${c.items.map(i => `${esc(A.seat(i.seat)?.name || i.seat)} <b class="num">${n2(i.value)}</b>${U.isNum(i.raw) ? ` <span class="muted small">written as ${esc(String(i.raw))}</span>` : ""}${i.as_of ? ` <span class="muted small">(${esc(i.as_of)})</span>` : ""}`).join(" · ")}</li>`).join("")}</ul></div>` : ""}
     <div class="card"><div class="sechead"><h3 class="h3">Claims ledger</h3>
       <select class="field small" id="lfSeat" aria-label="Filter by seat"><option value="">All seats</option>${seats.map(s => `<option value="${s}" ${f.seat === s ? "selected" : ""}>${esc(A.seat(s)?.name || s)}</option>`).join("")}</select>
       <select class="field small" id="lfType" aria-label="Filter by source type"><option value="">All sources</option>${["primary", "secondary", "computed", "estimate", "member", "model_knowledge"].map(s => `<option ${f.type === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>

@@ -171,7 +171,7 @@ function updateNav() {
   else if (S.run) { hc.hidden = false; hc.style.color = "var(--fg-2)"; hc.textContent = `${S.run.ticker} · ${S.running ? "in session" : S.run.status}`; }
   else hc.hidden = true;
   const bgN = Object.keys(S.bg).length;
-  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6.0.3 · Claude · knowledge mode" : `Private · Alpha Fund · v6.0.3 · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
+  $("#eyebrow").textContent = S.engine === "claude" ? "Private · Alpha Fund · v6.0.4 · Claude · knowledge mode" : `Private · Alpha Fund · v6.0.4 · ${A.PLANS[S.plan]?.label || ""} plan · ${+S.settings.searchDepth ? "web search" : "no search"}${A.data.available() ? " · SEC data" : ""}${bgN ? ` · ${bgN} run${bgN > 1 ? "s" : ""} in the background` : ""}`;
 }
 function renderView() {
   if (S.view === "discover") renderDiscover(); else if (S.view === "compare") renderCompare(); else if (S.view === "portfolio") renderPortfolio();
@@ -192,7 +192,7 @@ function themeIsLight(t) { return t === "light" || (t === "system" && window.mat
 function applyTheme() {
   const t = LS.get("theme", "dark"), light = themeIsLight(t);
   document.documentElement.classList.toggle("theme-light", light);
-  const b = $("#navTheme"); if (b) { b.textContent = light ? "☾ Dark" : "☀ Light"; b.setAttribute("aria-label", light ? "Switch to dark screen" : "Switch to light screen"); }
+  const b = $("#navTheme"); if (b) { b.textContent = light ? "☀ Light" : "☾ Dark"; b.title = light ? "Light screen is on — click for dark" : "Dark screen is on — click for light"; b.setAttribute("aria-label", b.title); }
 }
 function setTheme(t) { LS.set("theme", t); applyTheme(); if (S.view === "analysis" && S.tab === "chart") renderTabs(); }
 try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (LS.get("theme", "dark") === "system") applyTheme(); }); } catch {}
@@ -223,6 +223,7 @@ function bind() {
     const d = t.dataset;
     if (t.classList.contains("seat") && d.id && S.run) { if (S.run.reports[d.id]?.status === "queued") return; S.tab = "minutes"; S.open[d.id] = true; renderTabs(); document.getElementById("rep-" + d.id)?.scrollIntoView({behavior: "smooth", block: "start"}); return; }
     if (t.matches(".rep>header[data-id]") || (t.closest(".rep>header[data-id]") && t.tagName !== "BUTTON")) return; // handled below
+    if (d.depth && !S.running) { S.settings.searchDepth = +d.depth; LS.set("settings", S.settings); renderConsole(); updateNav(); return; }
     if (d.plan && !S.running) { S.plan = d.plan; LS.set("plan", S.plan); renderConsole(); renderEngine(); updateNav(); return; }
     if (d.tab) { S.tab = d.tab; renderTabs(); return; }
     if (d.goto) { S.tab = d.goto; renderTabs(); return; }

@@ -4,7 +4,10 @@ const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const fmtDate = ts => { const d = new Date(ts); return d.toLocaleDateString(undefined, {month: "numeric", day: "numeric", year: "numeric"}) + " · " + d.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"}); };
 const fmtK = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n || 0);
-const secs = ms => (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + "s";
+/* durations: 4.2s · 45s · 3m 07s · 1h 05m 12s */
+const secs = ms => { ms = Math.max(0, +ms || 0); if (ms < 10000) return (ms / 1000).toFixed(1) + "s";
+  const t = Math.round(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60, p = n => String(n).padStart(2, "0");
+  return h ? `${h}h ${p(m)}m ${p(s)}s` : m ? `${m}m ${p(s)}s` : `${s}s`; };
 const pct = (x, d = 1) => U.isNum(x) ? (x * 100).toFixed(d) + "%" : "–";
 const spct = (x, d = 1) => U.isNum(x) ? (x >= 0 ? "+" : "") + (x * 100).toFixed(d) + "%" : "–";
 const n2 = (x, d = 2) => U.isNum(x) ? U.fmtNum(x, d) : "–";

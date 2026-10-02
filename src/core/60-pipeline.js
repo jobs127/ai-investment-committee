@@ -33,6 +33,7 @@ PL.newRun = function ({ticker, mode, profile, settings, prior, member, engine, p
   seats.forEach(id => reports[id] = {status: "queued", text: "", data: null, sources: [], searches: [], usage: null, ms: 0});
   const P_ = AIC.PLANS[plan];
   return {id: U.uid(), ticker, createdAt: Date.now(), mode, seats, engine, plan, lean: !!P_.lean && engine === "api", batch: !!P_.batch && engine === "api",
+    searchDepth: +settings.searchDepth,
     model: engine === "claude" ? "claude.ai · most capable tier" : (P_.lean ? `${AIC.PLANS[plan].label}: Opus 5.5 judges + Sonnet 5.5 analysts` : settings.judgeModel || settings.model),
     promptVersion: AIC.PROMPT_VERSION, appVersion: AIC.VERSION,
     profile: Object.assign({}, profile), member: member || {note: "", docs: []},
@@ -157,6 +158,8 @@ const hashStr = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h 
    hooks: {settings, apiKey, signal, onUpdate(run, seatId, kind), save(run), defer, calibrationNote, holdingsInfo(run),
            findRecent(ticker, {maxAgeH, need}) -> run, digestCache {get(k), set(k, v)}} */
 PL.execute = async function (run, hooks) {
+  // the search depth chosen when the run started stays with the run (resumes and batches use it too)
+  if (isN(run.searchDepth) && run.searchDepth !== +hooks.settings.searchDepth) hooks = Object.assign({}, hooks, {settings: Object.assign({}, hooks.settings, {searchDepth: run.searchDepth})});
   const st = hooks.settings, upd = hooks.onUpdate || (() => {});
   run.status = "running";
   const system = P.houseRules(run.engine, run.ticker, run);

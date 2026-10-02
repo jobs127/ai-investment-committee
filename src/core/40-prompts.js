@@ -33,7 +33,7 @@ House rules:
 
 Output protocol:
 1. Write your report in Markdown, with short headers and tables where useful.
-2. End with one fenced \`\`\`json block holding the structured fields listed in your task. In "claims", list your most decision-relevant factual claims. When a claim is a number, set "metric" using these keys where they fit: ${AIC.METRIC_KEYS.join(", ")}. Percentages are plain numbers (12.5 means 12.5%). Set source_type honestly.
+2. End with one fenced \`\`\`json block holding the structured fields listed in your task. In "claims", list your most decision-relevant factual claims. When a claim is a number, set "metric" using these keys where they fit: ${AIC.METRIC_KEYS.join(", ")}. Percentages are plain numbers (12.5 means 12.5%). Money amounts are whole dollars (a $2.77 billion market cap is 2770000000, not 2770 or 2.77). Set source_type honestly.
 ${run.lean ? "\nResearch: on this plan the Scouts do the committee's web research. Their notes (stage 1) are your evidence; unless your task gives you a search budget, do not search. Earlier analysts appear as summaries with their key data." : ""}`;
 };
 

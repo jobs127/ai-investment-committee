@@ -1,4 +1,4 @@
-# AI Investment Committee — v6.0.3
+# AI Investment Committee — v6.0.4
 
 A staged committee of AI analysts debates one stock or ETF and delivers four things: a verdict, a probability-weighted expected value, a variant view (where the market is wrong), and an executable trade plan. You pick one of three cost plans (below). On **Max** every seat runs on **Claude Opus 5.5**; on **Saver** and **Balanced** the judges run on Opus 5.5 and the analysts on Sonnet 5.5. The numbers that matter (financials, ratios, quality scores, technicals, insider activity, filing-language changes, expected value and position sizing) are **computed in code from primary data**, not by the model.
 
@@ -17,6 +17,8 @@ There are only three choices, shown as buttons under the ticker box:
 | **Saver** (default) | about ¼ of Max | usually within an hour | Anthropic's **Batch API** (half price) + the lean engine. You can close the tab; the run continues when you come back. |
 | **Balanced** | about ½ of Max | minutes | The same lean engine, answered immediately. |
 | **Max** | full price | minutes | Every seat on Opus 5.5 with its own searches and the full committee record (the v6.0 behaviour). |
+
+Next to the plans, **Web search: Light · Standard · Deep** sets how much research is done, on any plan. On Saver and Balanced it sets how many searches the three Scouts make; on Max, every research seat. The estimate updates as you switch, and each run keeps the depth it started with.
 
 The **lean engine** does these automatically — no toggles:
 - Three **Scouts** (Data, Market, Field) do the web research once for the whole committee; other seats read their findings instead of searching again.

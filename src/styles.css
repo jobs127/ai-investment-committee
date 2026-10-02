@@ -395,3 +395,8 @@ section+section{margin-top:22px}
 .seat[data-st="waiting"] .state{color:var(--warn)}
 .seat[data-st="skipped"]{opacity:.55}
 details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px}
+.depths{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+.depths .lbl{margin-right:4px}
+.depth-opt{padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);color:var(--fg-2);cursor:pointer;font:inherit;font-size:13px}
+.depth-opt[aria-checked="true"]{border-color:var(--accent);color:var(--fg);box-shadow:inset 0 0 0 1px var(--accent)}
+.depth-opt:disabled{opacity:.55;cursor:default}

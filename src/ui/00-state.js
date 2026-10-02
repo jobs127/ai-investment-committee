@@ -100,11 +100,12 @@ const Cost = {
   addExtra(usage) { if (!usage || !U.isNum(usage.cost)) return; const m = Cost.month(), x = LS.get("extraSpend", {}); x[m] = (x[m] || 0) + usage.cost; LS.set("extraSpend", x); },
   learn(run) { // remember what each seat really cost on each plan, so estimates get better over time
     if (run.status !== "done" || !run.plan || run.engine !== "api") return;
-    const st = LS.get("coststats", {}); const P_ = st[run.plan] = st[run.plan] || {};
+    const st = LS.get("coststats", {}), key = Cost.key(run.plan, run.searchDepth ?? S.settings.searchDepth); const P_ = st[key] = st[key] || {};
     for (const id of run.seats) { const r = run.reports[id]; if (!r || r.reused || !r.usage || !U.isNum(r.usage.cost)) continue;
       const h = P_[id] = P_[id] || {n: 0, avg: 0}; const n = Math.min(h.n, 9); h.avg = (h.avg * n + r.usage.cost) / (n + 1); h.n++; }
     LS.set("coststats", st);
   },
-  estimate(mode, plan) { return PL.estimate({mode, plan, settings: S.settings, stats: LS.get("coststats", {})}); },
+  key: (plan, depth) => `${plan}@${+depth}`, // estimates learn per plan and search depth
+  estimate(mode, plan) { const st = LS.get("coststats", {}); return PL.estimate({mode, plan, settings: S.settings, stats: {[plan]: st[Cost.key(plan, S.settings.searchDepth)]}}); },
   budgetLeft() { const b = U.num(S.settings.monthlyBudget); return U.isNum(b) && b > 0 ? b - Cost.spentThisMonth() : null; }
 };
