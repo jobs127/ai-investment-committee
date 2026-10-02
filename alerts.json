@@ -1,0 +1,21 @@
+{
+  "app": "ai-stock-alert-system",
+  "version": "6.1.0",
+  "generated": "2026-10-02T03:33:58.790Z",
+  "settings": {
+    "plan": "saver",
+    "searchDepth": 1.5,
+    "reputableOnly": false,
+    "urgentRule": "thesis",
+    "blocked": "reddit.com, stocktwits.com, x.com, twitter.com, facebook.com, tiktok.com, instagram.com, discord.com, investorshub.advfn.com, 4chan.org, quora.com, medium.com, threads.net"
+  },
+  "tickers": [
+    {
+      "ticker": "WTTR",
+      "on": true,
+      "terms": "Select Water, Pilot Water Solutions, Produced Water",
+      "below": "",
+      "above": ""
+    }
+  ]
+}
