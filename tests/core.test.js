@@ -103,3 +103,24 @@ const ok = (name, cond, extra) => { console.log((cond ? "  ✓ " : "  ✗ ") + n
   fs.writeFileSync(path.join(__dirname, "out-run.json"), JSON.stringify(run, null, 1));
   console.log(process.exitCode ? "\nSOME TESTS FAILED" : "\nAll core tests passed.");
 })().catch(e => { console.error(e); process.exitCode = 1; });
+
+/* Regression: multi-class share structure (no single SEC share count) and a mis-tagged D&A line */
+(async () => {
+  await new Promise(r => setTimeout(r, 3000));
+  const A = globalThis.AIC, U = A.util, C = A.compute;
+  const {fixtureFor} = require("./mock");
+  const facts = JSON.parse(JSON.stringify(fixtureFor("https://data.sec.gov/api/xbrl/companyfacts/CIK0001693256.json").json));
+  delete facts.facts.dei; delete facts.facts["us-gaap"].WeightedAverageNumberOfDilutedSharesOutstanding;
+  facts.facts["us-gaap"].DepreciationDepletionAndAmortization.units.USD.forEach(e => { if (e.fy >= 2023) e.val = 3e6; });
+  const fin = C.extractFinancials(facts);
+  const ok = (n, c, x) => { console.log((c ? "  ✓ " : "  ✗ ") + n + (x !== undefined ? "  → " + x : "")); if (!c) process.exitCode = 1; };
+  console.log("Regression: multi-class shares + mis-tagged D&A");
+  ok("no share count from SEC", !fin.sharesOutstanding);
+  ok("tiny D&A flagged and dropped", fin.rows.filter(r => r.daSuspect).length === 3);
+  const fs = {fin, tech: {price: 12}, notes: []};
+  fs.yearMetrics = C.yearMetrics(fin.rows);
+  ok("valuation waits for shares", A.valuate(fs, null) === false && !fs.valuation);
+  ok("valuation completes from Scout shares", A.valuate(fs, 120e6, "shares from Data Scout") && Math.abs(fs.valuation.marketCap - 1.44e9) < 1, U.fmtNum(fs.valuation.marketCap));
+  ok("capex/D&A no longer absurd", fs.yearMetrics.every(y => !U.isNum(y.capexToDA) || y.capexToDA < 15));
+  console.log(process.exitCode ? "REGRESSION FAILED" : "Regression tests passed.");
+})();

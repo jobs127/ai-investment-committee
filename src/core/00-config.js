@@ -3,7 +3,7 @@
 "use strict";
 const AIC = G.AIC = G.AIC || {};
 
-AIC.VERSION = "6.0.0";
+AIC.VERSION = "6.0.1";
 AIC.PROMPT_VERSION = "p6.0";
 
 AIC.DEFAULTS = {
@@ -191,6 +191,7 @@ AIC.SCHEMAS = {
   scout: {score:null, extra:{
     instrument_type: S.enm(["stock","etf","adr","fund","other"], ""), sector:S.str("Sector and industry"),
     price: S.num("Last price"), price_as_of: S.str("Timestamp/date of last price"), currency: S.str("Trading currency"),
+    shares_outstanding: S.num("Total shares outstanding, all classes (e.g. Class A + Class B), as a plain number"), market_cap: S.num("Market capitalization in the trading currency, as a plain number"),
     next_earnings_date: S.str("YYYY-MM-DD if known"), data_quality: S.enm(["High","Medium","Low"], "Quality of the data you found")}},
   expect: {score:null, extra:{
     implied_growth_pct: S.num("Annual growth the price implies (use the Data Desk reverse DCF if available)"),

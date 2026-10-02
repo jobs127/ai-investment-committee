@@ -475,7 +475,7 @@ section+section{margin-top:22px}
 "use strict";
 const AIC = G.AIC = G.AIC || {};
 
-AIC.VERSION = "6.0.0";
+AIC.VERSION = "6.0.1";
 AIC.PROMPT_VERSION = "p6.0";
 
 AIC.DEFAULTS = {
@@ -663,6 +663,7 @@ AIC.SCHEMAS = {
   scout: {score:null, extra:{
     instrument_type: S.enm(["stock","etf","adr","fund","other"], ""), sector:S.str("Sector and industry"),
     price: S.num("Last price"), price_as_of: S.str("Timestamp/date of last price"), currency: S.str("Trading currency"),
+    shares_outstanding: S.num("Total shares outstanding, all classes (e.g. Class A + Class B), as a plain number"), market_cap: S.num("Market capitalization in the trading currency, as a plain number"),
     next_earnings_date: S.str("YYYY-MM-DD if known"), data_quality: S.enm(["High","Medium","Low"], "Quality of the data you found")}},
   expect: {score:null, extra:{
     implied_growth_pct: S.num("Annual growth the price implies (use the Data Desk reverse DCF if available)"),
@@ -1014,7 +1015,7 @@ const CONCEPTS = {
   tax:["IncomeTaxExpenseBenefit"],
   cfo:["NetCashProvidedByUsedInOperatingActivities","NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"],
   capex:["PaymentsToAcquirePropertyPlantAndEquipment","PaymentsToAcquireProductiveAssets","PaymentsForCapitalImprovements","PaymentsToAcquireOilAndGasPropertyAndEquipment"],
-  da:["DepreciationDepletionAndAmortization","DepreciationAmortizationAndAccretionNet","DepreciationAndAmortization","Depreciation"],
+  da:["DepreciationDepletionAndAmortization","DepreciationAmortizationAndAccretionNet","DepreciationAndAmortization","DepreciationAccretionAndAmortization","DepreciationDepletionAndAmortizationPropertyPlantAndEquipment","Depreciation","CostDepreciationAmortizationAndDepletion"],
   sbc:["ShareBasedCompensation","AllocatedShareBasedCompensationExpense"],
   interest:["InterestExpense","InterestExpenseNonoperating","InterestExpenseDebt","InterestPaidNet"],
   sga:["SellingGeneralAndAdministrativeExpense","GeneralAndAdministrativeExpense"],
@@ -1022,7 +1023,7 @@ const CONCEPTS = {
   div:["PaymentsOfDividends","PaymentsOfDividendsCommonStock"],
   acq:["PaymentsToAcquireBusinessesNetOfCashAcquired"],
   amort:["AmortizationOfIntangibleAssets"],
-  dilShares:["WeightedAverageNumberOfDilutedSharesOutstanding"],
+  dilShares:["WeightedAverageNumberOfDilutedSharesOutstanding","WeightedAverageNumberOfSharesOutstandingBasic"],
   eps:["EarningsPerShareDiluted","EarningsPerShareBasicAndDiluted"],
   // instants
   ar:["AccountsReceivableNetCurrent","ReceivablesNetCurrent"],
@@ -1059,6 +1060,12 @@ function bestBy(list, keyFn) {
   return m;
 }
 
+const MAXAGG = new Set(["da"]);
+function maxBy(list, keyFn) { // largest value per period, newest filing wins ties
+  const m = new Map();
+  for (const e of list) { const k = keyFn(e); const cur = m.get(k); if (!cur || e.val > cur.val || (e.val === cur.val && (e.filed || "") > (cur.filed || ""))) m.set(k, e); }
+  return m;
+}
 C.extractFinancials = function (facts) {
   if (!facts || !facts.facts) return null;
   const currencyUnit = (() => { const r = factsFor(facts, CONCEPTS.revenue, "USD"); return r.length ? "USD" : null; })();
@@ -1067,8 +1074,9 @@ C.extractFinancials = function (facts) {
   for (const k in CONCEPTS) {
     const list = factsFor(facts, CONCEPTS[k], unitOf(k));
     if (INSTANT.has(k)) { instants[k] = bestBy(list, e => e.end); continue; }
-    annual[k] = bestBy(list.filter(e => { const d = durDays(e); return d > 330 && d < 400; }), e => e.end);
-    quarterly[k] = bestBy(list.filter(e => { const d = durDays(e); return d > 75 && d < 105; }), e => e.end);
+    const pick = MAXAGG.has(k) ? maxBy : bestBy;
+    annual[k] = pick(list.filter(e => { const d = durDays(e); return d > 330 && d < 400; }), e => e.end);
+    quarterly[k] = pick(list.filter(e => { const d = durDays(e); return d > 75 && d < 105; }), e => e.end);
   }
   // fiscal-year ends from revenue, else net income
   const fyKey = annual.revenue.size ? "revenue" : "netInc";
@@ -1102,12 +1110,21 @@ C.extractFinancials = function (facts) {
   // latest instants (for most recent balance sheet)
   const latestInst = {};
   for (const k of INSTANT) { const m = instants[k]; if (m && m.size) { const end = [...m.keys()].sort().pop(); latestInst[k] = {val: m.get(end).val, end}; } }
-  const dei = facts.facts.dei || {};
+  const dei = facts.facts.dei || {}, gaap = facts.facts["us-gaap"] || {};
+  const latestOf = arr => arr && arr.length ? arr.slice().sort((a, b) => (a.end + (a.filed || "")) < (b.end + (b.filed || "")) ? -1 : 1).pop() : null;
+  // share count: dei cover-page count (summed across classes when reported per class), then balance-sheet, then weighted averages
+  let sharesOut = null;
   const so = dei.EntityCommonStockSharesOutstanding?.units?.shares || [];
-  const sharesOut = so.length ? so.slice().sort((a, b) => (a.end + a.filed) < (b.end + b.filed) ? -1 : 1).pop() : null;
-  return {rows, quarters: qlist, latest: latestInst, sharesOutstanding: sharesOut ? {val: sharesOut.val, end: sharesOut.end} : null, currency: currencyUnit || "USD", entity: facts.entityName};
+  if (so.length) { const lastE = latestOf(so); const same = so.filter(x => x.end === lastE.end && x.accn === lastE.accn); sharesOut = {val: same.reduce((t, x) => t + x.val, 0), end: lastE.end, source: "cover-page shares outstanding (SEC)" + (same.length > 1 ? ", all classes" : "")}; }
+  const tryInst = (concept, label) => { if (sharesOut) return; const a = gaap[concept]?.units?.shares; const e = latestOf(a); if (e && e.val > 0 && U.daysBetween(e.end, U.today()) < 500) sharesOut = {val: e.val, end: e.end, source: label}; };
+  tryInst("CommonStockSharesOutstanding", "balance-sheet shares outstanding (SEC)");
+  const tryDur = (concept, label) => { if (sharesOut) return; const a = (gaap[concept]?.units?.shares || []).filter(x => { const d = durDays(x); return d > 75 && d < 400; }); const e = latestOf(a); if (e && e.val > 0 && U.daysBetween(e.end, U.today()) < 500) sharesOut = {val: e.val, end: e.end, source: label}; };
+  tryDur("WeightedAverageNumberOfDilutedSharesOutstanding", "diluted weighted-average shares (SEC)");
+  tryDur("WeightedAverageNumberOfSharesOutstandingBasic", "basic weighted-average shares (SEC)");
+  return {rows, quarters: qlist, latest: latestInst, sharesOutstanding: sharesOut, currency: currencyUnit || "USD", entity: facts.entityName};
 };
 function finishRow(r) {
+  if (isN(r.da) && isN(r.capex) && isN(r.revenue) && r.revenue > 0 && r.da < 0.01 * r.revenue && r.capex > 15 * r.da) { r.daSuspect = true; r.da = null; }
   if (r.gross == null && r.revenue != null && r.cogs != null) r.gross = r.revenue - r.cogs;
   r.debt = r.ltdTotal != null ? r.ltdTotal + (r.stb || 0) : (r.ltdNon != null || r.ltdCur != null || r.stb != null) ? (r.ltdNon || 0) + (r.ltdCur || 0) + (r.stb || 0) : null;
   r.fcf = r.cfo != null && r.capex != null ? r.cfo - r.capex : (r.cfo != null ? r.cfo : null);
@@ -1449,7 +1466,7 @@ C.factsheetMarkdown = function (fs) {
   if (fs.company) L.push(`Company: SIC ${fs.company.sic || "?"} ${fs.company.sicDescription || ""} · exchange ${fs.company.exchange || "?"} · fiscal year end ${fs.company.fyEnd || "?"} · playbook: ${fs.playbook?.name || "?"}`);
   if (fs.tech) { const t = fs.tech; L.push(`Price ${f(t.price)} ${fs.currency || ""} (close ${t.date}, ${fs.priceSource || ""}) · 52w ${f(t.low52)}–${f(t.high52)} · 1m ${U.pct(t.ret.m1)} · 3m ${U.pct(t.ret.m3)} · 1y ${U.pct(t.ret.y1)} · ADV $${f(t.adv20)}`); }
   const v = fs.valuation;
-  if (v) L.push(`Valuation: mkt cap $${f(v.marketCap)} · EV $${f(v.ev)} · P/E TTM ${f(v.pe, 1)} · EV/EBITDA ${f(v.evEbitda, 1)} · EV/Sales ${f(v.evSales, 1)} · P/FCF ${f(v.pFcf, 1)} · FCF yield ${U.pct(v.fcfYield)} · FCF-after-SBC yield ${U.pct(v.fcfSbcYield)} · dividend yield ${U.pct(v.divYield)} · buyback yield ${U.pct(v.buybackYield)} · shares ${f(v.shares)}`);
+  if (v) L.push(`Valuation: mkt cap $${f(v.marketCap)} · EV $${f(v.ev)} · P/E TTM ${f(v.pe, 1)} · EV/EBITDA ${f(v.evEbitda, 1)} · EV/Sales ${f(v.evSales, 1)} · P/FCF ${f(v.pFcf, 1)} · FCF yield ${U.pct(v.fcfYield)} · FCF-after-SBC yield ${U.pct(v.fcfSbcYield)} · dividend yield ${U.pct(v.divYield)} · buyback yield ${U.pct(v.buybackYield)} · shares ${f(v.shares)}${v.shareSource ? " (" + v.shareSource + ")" : ""}`);
   if (fs.reverseDcf) { const r = fs.reverseDcf; L.push(`Reverse DCF (${r.method}, r=${(r.r * 100).toFixed(1)}%, g=${(r.g * 100).toFixed(1)}%, ${r.years}y): price implies ${isN(r.impliedGrowth) ? U.pct(r.impliedGrowth) + " annual growth" : r.note}`); }
   if (fs.yearMetrics?.length) {
     L.push("\n| FY | Revenue | Growth | Gross m | Op m | FCF | FCF−SBC | ROIC | Accruals | ND/EBITDA |\n|---|---|---|---|---|---|---|---|---|---|");
@@ -1665,27 +1682,12 @@ AIC.buildFactsheet = async function (ticker, opts = {}) {
     const rows = fs.fin.rows; fs.yearMetrics = C.yearMetrics(rows); fs.incRoic = C.incrementalRoic(fs.yearMetrics);
     fs.qGrowth = C.qGrowthSeries(fs.fin.quarters);
     const last = rows[rows.length - 1], prev = rows[rows.length - 2];
-    const price = fs.tech?.price;
-    const shares = fs.fin.sharesOutstanding?.val || last.dilShares;
-    const lat = fs.fin.latest;
-    const debt = (() => { const l = k => lat[k]?.val; if (isN(l("ltdTotal"))) return l("ltdTotal") + (l("stb") || 0); const s = (l("ltdNon") || 0) + (l("ltdCur") || 0) + (l("stb") || 0); return s || last.debt || 0; })();
-    const cash = lat.cash?.val ?? last.cash ?? 0;
-    const q = fs.fin.quarters;
-    const ttm = k => C.ttm(q, k) ?? last[k];
-    const T = {revenue: ttm("revenue"), opInc: ttm("opInc"), netInc: ttm("netInc"), cfo: ttm("cfo"), capex: ttm("capex"), da: ttm("da") ?? last.da, sbc: ttm("sbc") ?? last.sbc};
-    T.fcf = isN(T.cfo) ? T.cfo - (T.capex || 0) : null; T.ebitda = isN(T.opInc) ? T.opInc + (T.da || 0) : null;
-    fs.ttm = T;
-    if (isN(price) && isN(shares)) {
-      const mcap = price * shares, ev = mcap + debt - cash;
-      fs.valuation = {price, shares, marketCap: mcap, ev, debt, cash,
-        pe: isN(T.netInc) && T.netInc > 0 ? mcap / T.netInc : null, evEbitda: isN(T.ebitda) && T.ebitda > 0 ? ev / T.ebitda : null,
-        evSales: isN(T.revenue) && T.revenue > 0 ? ev / T.revenue : null, pFcf: isN(T.fcf) && T.fcf > 0 ? mcap / T.fcf : null,
-        fcfYield: isN(T.fcf) ? T.fcf / mcap : null, fcfSbcYield: isN(T.fcf) ? (T.fcf - (T.sbc || 0)) / mcap : null,
-        divYield: isN(last.div) ? last.div / mcap : null, buybackYield: isN(last.buyback) ? last.buyback / mcap : null};
-      const bestFcfMargin = Math.max(0.05, ...fs.yearMetrics.map(y => y.fcfMargin).filter(isN));
-      fs.reverseDcf = C.reverseDCF({ev, fcf0: T.fcf, revenue0: T.revenue, r: (+st.discountRate || 9) / 100, g: (+st.terminalGrowth || 2.5) / 100, fcfMargin: Math.min(bestFcfMargin, 0.35)});
-    } else fs.notes.push("Valuation skipped: missing price or share count.");
-    fs.quality = {piotroski: C.piotroski(last, prev), altman: C.altman(last, fs.valuation?.marketCap), beneish: C.beneish(last, prev)};
+    const sh = fs.fin.sharesOutstanding;
+    const shares = sh?.val || last.dilShares || null;
+    fs.shareSource = sh?.val ? sh.source : last.dilShares ? "diluted weighted-average shares (XBRL)" : null;
+    if (rows.some(r => r.daSuspect)) fs.notes.push("Depreciation & amortization looked mis-tagged in some years (far below capex), so it was left out of EBITDA and capex/D&A for those years.");
+    AIC.valuate(fs, shares, fs.shareSource, st);
+    if (!fs.valuation) fs.notes.push("Valuation pending: SEC filings don't give a single share count for this company (often a multi-class structure). The Data Scout's share count is used once it reports.");
     if (/^6[0-7]/.test(String(fs.company?.sic || ""))) fs.notes.push("Financial company: Altman Z, Beneish and ROIC are not meaningful; use the bank/insurance playbook KPIs.");
   }
 
@@ -1716,6 +1718,34 @@ AIC.buildFactsheet = async function (ticker, opts = {}) {
   fs.markdown = C.factsheetMarkdown(fs);
   say("Data Desk complete.");
   return fs;
+};
+/* valuation from a share count; callable again after the Data Scout reports shares */
+AIC.valuate = function (fs, shares, source, st) {
+  st = st || AIC.DEFAULTS;
+  if (!fs || !fs.fin || !fs.fin.rows.length) return false;
+  const rows = fs.fin.rows, last = rows[rows.length - 1], prev = rows[rows.length - 2];
+  const price = fs.tech?.price;
+  const lat = fs.fin.latest;
+  const debt = (() => { const l = k => lat[k]?.val; if (isN(l("ltdTotal"))) return l("ltdTotal") + (l("stb") || 0); const s = (l("ltdNon") || 0) + (l("ltdCur") || 0) + (l("stb") || 0); return s || last.debt || 0; })();
+  const cash = lat.cash?.val ?? last.cash ?? 0;
+  const q = fs.fin.quarters;
+  const ttm = k => C.ttm(q, k) ?? last[k];
+  const T = {revenue: ttm("revenue"), opInc: ttm("opInc"), netInc: ttm("netInc"), cfo: ttm("cfo"), capex: ttm("capex"), da: last.da, sbc: ttm("sbc") ?? last.sbc};
+  const qda = C.ttm(q, "da"); if (isN(qda) && (!isN(T.da) || qda >= T.da * 0.5)) T.da = qda;
+  T.fcf = isN(T.cfo) ? T.cfo - (T.capex || 0) : null; T.ebitda = isN(T.opInc) ? T.opInc + (T.da || 0) : null;
+  fs.ttm = T;
+  if (isN(price) && isN(shares) && shares > 0) {
+    const mcap = price * shares, ev = mcap + debt - cash;
+    fs.valuation = {price, shares, shareSource: source || "", marketCap: mcap, ev, debt, cash,
+      pe: isN(T.netInc) && T.netInc > 0 ? mcap / T.netInc : null, evEbitda: isN(T.ebitda) && T.ebitda > 0 ? ev / T.ebitda : null,
+      evSales: isN(T.revenue) && T.revenue > 0 ? ev / T.revenue : null, pFcf: isN(T.fcf) && T.fcf > 0 ? mcap / T.fcf : null,
+      fcfYield: isN(T.fcf) ? T.fcf / mcap : null, fcfSbcYield: isN(T.fcf) ? (T.fcf - (T.sbc || 0)) / mcap : null,
+      divYield: isN(last.div) ? last.div / mcap : null, buybackYield: isN(last.buyback) ? last.buyback / mcap : null};
+    const bestFcfMargin = Math.max(0.05, ...(fs.yearMetrics || []).map(y => y.fcfMargin).filter(isN));
+    fs.reverseDcf = C.reverseDCF({ev, fcf0: T.fcf, revenue0: T.revenue, r: (+st.discountRate || 9) / 100, g: (+st.terminalGrowth || 2.5) / 100, fcfMargin: Math.min(bestFcfMargin, 0.35)});
+  }
+  fs.quality = {piotroski: C.piotroski(last, prev), altman: C.altman(last, fs.valuation?.marketCap), beneish: C.beneish(last, prev)};
+  return !!fs.valuation;
 };
 AIC.barsOf = fs => (fs && fs.bars) ? fs.bars.map(b => ({t: b[0], o: b[1], h: b[2], l: b[3], c: b[4], v: b[5]})) : null;
 })(typeof globalThis !== "undefined" ? globalThis : window);
@@ -1782,6 +1812,7 @@ Cover:
 4. The 5 most material news items or filings from the last 60 days, each dated, with why it matters.
 5. Primary-source findings others may have missed (footnotes, comment letters, permits, contracts, dockets).
 6. Data gaps.
+In the tool call, always fill shares_outstanding (total across all share classes, e.g. Class A + Class B) and market_cap, from the latest 10-Q cover page or a reliable quote page.
 ${c.earnings ? "EARNINGS-UPDATE MODE: focus on the latest results vs expectations, what changed vs the prior committee decision, guidance, and anything new in the release or call." : ""}
 ${c.playbook}`,
 
@@ -2322,6 +2353,14 @@ PL.execute = async function (run, hooks) {
           schemaKey: seat.id, unified: true, maxUses: n > 0 ? globalCap(st) : (+st.searchDepth && run.engine === "api" ? globalCap(st) : 0), signal: hooks.signal,
           onText: txt => { rep.text = txt; upd(run, seat.id, "stream"); }, onSearch: q => { rep.searches.push(q); upd(run, seat.id, "stream"); }});
         Object.assign(rep, {text: out.text, data: out.data, sources: out.sources, usage: out.usage, status: "done", ms: Date.now() - t0});
+        if (seat.id === "scout" && out.data && run.factsheet && run.factsheet.fin && !run.factsheet.valuation) {
+          const d = out.data, px = run.factsheet.tech?.price;
+          const sh = U.num(d.shares_outstanding) || (U.num(d.market_cap) && px ? U.num(d.market_cap) / px : null);
+          if (sh && AIC.valuate(run.factsheet, sh, U.num(d.shares_outstanding) ? "shares from Data Scout (web, verify)" : "implied from Data Scout market cap (web, verify)", st)) {
+            const fs = run.factsheet; fs.notes = (fs.notes || []).filter(n => !/^Valuation pending/.test(n));
+            fs.leading = C.leadingSignals(fs); fs.markdown = C.factsheetMarkdown(fs); run.reports.desk.text = fs.markdown;
+          }
+        }
         if (seat.id === "scout" && (!run.factsheet || run.factsheet.status !== "ok") && out.data) {
           run.playbook = AIC.pickPlaybook(null, out.data.sector, out.data.instrument_type);
           if (run.factsheet) run.factsheet.playbook = run.playbook;

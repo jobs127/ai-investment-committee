@@ -59,6 +59,7 @@ Cover:
 4. The 5 most material news items or filings from the last 60 days, each dated, with why it matters.
 5. Primary-source findings others may have missed (footnotes, comment letters, permits, contracts, dockets).
 6. Data gaps.
+In the tool call, always fill shares_outstanding (total across all share classes, e.g. Class A + Class B) and market_cap, from the latest 10-Q cover page or a reliable quote page.
 ${c.earnings ? "EARNINGS-UPDATE MODE: focus on the latest results vs expectations, what changed vs the prior committee decision, guidance, and anything new in the release or call." : ""}
 ${c.playbook}`,
 

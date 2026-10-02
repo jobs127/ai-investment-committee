@@ -55,27 +55,12 @@ AIC.buildFactsheet = async function (ticker, opts = {}) {
     const rows = fs.fin.rows; fs.yearMetrics = C.yearMetrics(rows); fs.incRoic = C.incrementalRoic(fs.yearMetrics);
     fs.qGrowth = C.qGrowthSeries(fs.fin.quarters);
     const last = rows[rows.length - 1], prev = rows[rows.length - 2];
-    const price = fs.tech?.price;
-    const shares = fs.fin.sharesOutstanding?.val || last.dilShares;
-    const lat = fs.fin.latest;
-    const debt = (() => { const l = k => lat[k]?.val; if (isN(l("ltdTotal"))) return l("ltdTotal") + (l("stb") || 0); const s = (l("ltdNon") || 0) + (l("ltdCur") || 0) + (l("stb") || 0); return s || last.debt || 0; })();
-    const cash = lat.cash?.val ?? last.cash ?? 0;
-    const q = fs.fin.quarters;
-    const ttm = k => C.ttm(q, k) ?? last[k];
-    const T = {revenue: ttm("revenue"), opInc: ttm("opInc"), netInc: ttm("netInc"), cfo: ttm("cfo"), capex: ttm("capex"), da: ttm("da") ?? last.da, sbc: ttm("sbc") ?? last.sbc};
-    T.fcf = isN(T.cfo) ? T.cfo - (T.capex || 0) : null; T.ebitda = isN(T.opInc) ? T.opInc + (T.da || 0) : null;
-    fs.ttm = T;
-    if (isN(price) && isN(shares)) {
-      const mcap = price * shares, ev = mcap + debt - cash;
-      fs.valuation = {price, shares, marketCap: mcap, ev, debt, cash,
-        pe: isN(T.netInc) && T.netInc > 0 ? mcap / T.netInc : null, evEbitda: isN(T.ebitda) && T.ebitda > 0 ? ev / T.ebitda : null,
-        evSales: isN(T.revenue) && T.revenue > 0 ? ev / T.revenue : null, pFcf: isN(T.fcf) && T.fcf > 0 ? mcap / T.fcf : null,
-        fcfYield: isN(T.fcf) ? T.fcf / mcap : null, fcfSbcYield: isN(T.fcf) ? (T.fcf - (T.sbc || 0)) / mcap : null,
-        divYield: isN(last.div) ? last.div / mcap : null, buybackYield: isN(last.buyback) ? last.buyback / mcap : null};
-      const bestFcfMargin = Math.max(0.05, ...fs.yearMetrics.map(y => y.fcfMargin).filter(isN));
-      fs.reverseDcf = C.reverseDCF({ev, fcf0: T.fcf, revenue0: T.revenue, r: (+st.discountRate || 9) / 100, g: (+st.terminalGrowth || 2.5) / 100, fcfMargin: Math.min(bestFcfMargin, 0.35)});
-    } else fs.notes.push("Valuation skipped: missing price or share count.");
-    fs.quality = {piotroski: C.piotroski(last, prev), altman: C.altman(last, fs.valuation?.marketCap), beneish: C.beneish(last, prev)};
+    const sh = fs.fin.sharesOutstanding;
+    const shares = sh?.val || last.dilShares || null;
+    fs.shareSource = sh?.val ? sh.source : last.dilShares ? "diluted weighted-average shares (XBRL)" : null;
+    if (rows.some(r => r.daSuspect)) fs.notes.push("Depreciation & amortization looked mis-tagged in some years (far below capex), so it was left out of EBITDA and capex/D&A for those years.");
+    AIC.valuate(fs, shares, fs.shareSource, st);
+    if (!fs.valuation) fs.notes.push("Valuation pending: SEC filings don't give a single share count for this company (often a multi-class structure). The Data Scout's share count is used once it reports.");
     if (/^6[0-7]/.test(String(fs.company?.sic || ""))) fs.notes.push("Financial company: Altman Z, Beneish and ROIC are not meaningful; use the bank/insurance playbook KPIs.");
   }
 
@@ -106,6 +91,34 @@ AIC.buildFactsheet = async function (ticker, opts = {}) {
   fs.markdown = C.factsheetMarkdown(fs);
   say("Data Desk complete.");
   return fs;
+};
+/* valuation from a share count; callable again after the Data Scout reports shares */
+AIC.valuate = function (fs, shares, source, st) {
+  st = st || AIC.DEFAULTS;
+  if (!fs || !fs.fin || !fs.fin.rows.length) return false;
+  const rows = fs.fin.rows, last = rows[rows.length - 1], prev = rows[rows.length - 2];
+  const price = fs.tech?.price;
+  const lat = fs.fin.latest;
+  const debt = (() => { const l = k => lat[k]?.val; if (isN(l("ltdTotal"))) return l("ltdTotal") + (l("stb") || 0); const s = (l("ltdNon") || 0) + (l("ltdCur") || 0) + (l("stb") || 0); return s || last.debt || 0; })();
+  const cash = lat.cash?.val ?? last.cash ?? 0;
+  const q = fs.fin.quarters;
+  const ttm = k => C.ttm(q, k) ?? last[k];
+  const T = {revenue: ttm("revenue"), opInc: ttm("opInc"), netInc: ttm("netInc"), cfo: ttm("cfo"), capex: ttm("capex"), da: last.da, sbc: ttm("sbc") ?? last.sbc};
+  const qda = C.ttm(q, "da"); if (isN(qda) && (!isN(T.da) || qda >= T.da * 0.5)) T.da = qda;
+  T.fcf = isN(T.cfo) ? T.cfo - (T.capex || 0) : null; T.ebitda = isN(T.opInc) ? T.opInc + (T.da || 0) : null;
+  fs.ttm = T;
+  if (isN(price) && isN(shares) && shares > 0) {
+    const mcap = price * shares, ev = mcap + debt - cash;
+    fs.valuation = {price, shares, shareSource: source || "", marketCap: mcap, ev, debt, cash,
+      pe: isN(T.netInc) && T.netInc > 0 ? mcap / T.netInc : null, evEbitda: isN(T.ebitda) && T.ebitda > 0 ? ev / T.ebitda : null,
+      evSales: isN(T.revenue) && T.revenue > 0 ? ev / T.revenue : null, pFcf: isN(T.fcf) && T.fcf > 0 ? mcap / T.fcf : null,
+      fcfYield: isN(T.fcf) ? T.fcf / mcap : null, fcfSbcYield: isN(T.fcf) ? (T.fcf - (T.sbc || 0)) / mcap : null,
+      divYield: isN(last.div) ? last.div / mcap : null, buybackYield: isN(last.buyback) ? last.buyback / mcap : null};
+    const bestFcfMargin = Math.max(0.05, ...(fs.yearMetrics || []).map(y => y.fcfMargin).filter(isN));
+    fs.reverseDcf = C.reverseDCF({ev, fcf0: T.fcf, revenue0: T.revenue, r: (+st.discountRate || 9) / 100, g: (+st.terminalGrowth || 2.5) / 100, fcfMargin: Math.min(bestFcfMargin, 0.35)});
+  }
+  fs.quality = {piotroski: C.piotroski(last, prev), altman: C.altman(last, fs.valuation?.marketCap), beneish: C.beneish(last, prev)};
+  return !!fs.valuation;
 };
 AIC.barsOf = fs => (fs && fs.bars) ? fs.bars.map(b => ({t: b[0], o: b[1], h: b[2], l: b[3], c: b[4], v: b[5]})) : null;
 })(typeof globalThis !== "undefined" ? globalThis : window);

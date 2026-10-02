@@ -18,7 +18,7 @@ const CONCEPTS = {
   tax:["IncomeTaxExpenseBenefit"],
   cfo:["NetCashProvidedByUsedInOperatingActivities","NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"],
   capex:["PaymentsToAcquirePropertyPlantAndEquipment","PaymentsToAcquireProductiveAssets","PaymentsForCapitalImprovements","PaymentsToAcquireOilAndGasPropertyAndEquipment"],
-  da:["DepreciationDepletionAndAmortization","DepreciationAmortizationAndAccretionNet","DepreciationAndAmortization","Depreciation"],
+  da:["DepreciationDepletionAndAmortization","DepreciationAmortizationAndAccretionNet","DepreciationAndAmortization","DepreciationAccretionAndAmortization","DepreciationDepletionAndAmortizationPropertyPlantAndEquipment","Depreciation","CostDepreciationAmortizationAndDepletion"],
   sbc:["ShareBasedCompensation","AllocatedShareBasedCompensationExpense"],
   interest:["InterestExpense","InterestExpenseNonoperating","InterestExpenseDebt","InterestPaidNet"],
   sga:["SellingGeneralAndAdministrativeExpense","GeneralAndAdministrativeExpense"],
@@ -26,7 +26,7 @@ const CONCEPTS = {
   div:["PaymentsOfDividends","PaymentsOfDividendsCommonStock"],
   acq:["PaymentsToAcquireBusinessesNetOfCashAcquired"],
   amort:["AmortizationOfIntangibleAssets"],
-  dilShares:["WeightedAverageNumberOfDilutedSharesOutstanding"],
+  dilShares:["WeightedAverageNumberOfDilutedSharesOutstanding","WeightedAverageNumberOfSharesOutstandingBasic"],
   eps:["EarningsPerShareDiluted","EarningsPerShareBasicAndDiluted"],
   // instants
   ar:["AccountsReceivableNetCurrent","ReceivablesNetCurrent"],
@@ -63,6 +63,12 @@ function bestBy(list, keyFn) {
   return m;
 }
 
+const MAXAGG = new Set(["da"]);
+function maxBy(list, keyFn) { // largest value per period, newest filing wins ties
+  const m = new Map();
+  for (const e of list) { const k = keyFn(e); const cur = m.get(k); if (!cur || e.val > cur.val || (e.val === cur.val && (e.filed || "") > (cur.filed || ""))) m.set(k, e); }
+  return m;
+}
 C.extractFinancials = function (facts) {
   if (!facts || !facts.facts) return null;
   const currencyUnit = (() => { const r = factsFor(facts, CONCEPTS.revenue, "USD"); return r.length ? "USD" : null; })();
@@ -71,8 +77,9 @@ C.extractFinancials = function (facts) {
   for (const k in CONCEPTS) {
     const list = factsFor(facts, CONCEPTS[k], unitOf(k));
     if (INSTANT.has(k)) { instants[k] = bestBy(list, e => e.end); continue; }
-    annual[k] = bestBy(list.filter(e => { const d = durDays(e); return d > 330 && d < 400; }), e => e.end);
-    quarterly[k] = bestBy(list.filter(e => { const d = durDays(e); return d > 75 && d < 105; }), e => e.end);
+    const pick = MAXAGG.has(k) ? maxBy : bestBy;
+    annual[k] = pick(list.filter(e => { const d = durDays(e); return d > 330 && d < 400; }), e => e.end);
+    quarterly[k] = pick(list.filter(e => { const d = durDays(e); return d > 75 && d < 105; }), e => e.end);
   }
   // fiscal-year ends from revenue, else net income
   const fyKey = annual.revenue.size ? "revenue" : "netInc";
@@ -106,12 +113,21 @@ C.extractFinancials = function (facts) {
   // latest instants (for most recent balance sheet)
   const latestInst = {};
   for (const k of INSTANT) { const m = instants[k]; if (m && m.size) { const end = [...m.keys()].sort().pop(); latestInst[k] = {val: m.get(end).val, end}; } }
-  const dei = facts.facts.dei || {};
+  const dei = facts.facts.dei || {}, gaap = facts.facts["us-gaap"] || {};
+  const latestOf = arr => arr && arr.length ? arr.slice().sort((a, b) => (a.end + (a.filed || "")) < (b.end + (b.filed || "")) ? -1 : 1).pop() : null;
+  // share count: dei cover-page count (summed across classes when reported per class), then balance-sheet, then weighted averages
+  let sharesOut = null;
   const so = dei.EntityCommonStockSharesOutstanding?.units?.shares || [];
-  const sharesOut = so.length ? so.slice().sort((a, b) => (a.end + a.filed) < (b.end + b.filed) ? -1 : 1).pop() : null;
-  return {rows, quarters: qlist, latest: latestInst, sharesOutstanding: sharesOut ? {val: sharesOut.val, end: sharesOut.end} : null, currency: currencyUnit || "USD", entity: facts.entityName};
+  if (so.length) { const lastE = latestOf(so); const same = so.filter(x => x.end === lastE.end && x.accn === lastE.accn); sharesOut = {val: same.reduce((t, x) => t + x.val, 0), end: lastE.end, source: "cover-page shares outstanding (SEC)" + (same.length > 1 ? ", all classes" : "")}; }
+  const tryInst = (concept, label) => { if (sharesOut) return; const a = gaap[concept]?.units?.shares; const e = latestOf(a); if (e && e.val > 0 && U.daysBetween(e.end, U.today()) < 500) sharesOut = {val: e.val, end: e.end, source: label}; };
+  tryInst("CommonStockSharesOutstanding", "balance-sheet shares outstanding (SEC)");
+  const tryDur = (concept, label) => { if (sharesOut) return; const a = (gaap[concept]?.units?.shares || []).filter(x => { const d = durDays(x); return d > 75 && d < 400; }); const e = latestOf(a); if (e && e.val > 0 && U.daysBetween(e.end, U.today()) < 500) sharesOut = {val: e.val, end: e.end, source: label}; };
+  tryDur("WeightedAverageNumberOfDilutedSharesOutstanding", "diluted weighted-average shares (SEC)");
+  tryDur("WeightedAverageNumberOfSharesOutstandingBasic", "basic weighted-average shares (SEC)");
+  return {rows, quarters: qlist, latest: latestInst, sharesOutstanding: sharesOut, currency: currencyUnit || "USD", entity: facts.entityName};
 };
 function finishRow(r) {
+  if (isN(r.da) && isN(r.capex) && isN(r.revenue) && r.revenue > 0 && r.da < 0.01 * r.revenue && r.capex > 15 * r.da) { r.daSuspect = true; r.da = null; }
   if (r.gross == null && r.revenue != null && r.cogs != null) r.gross = r.revenue - r.cogs;
   r.debt = r.ltdTotal != null ? r.ltdTotal + (r.stb || 0) : (r.ltdNon != null || r.ltdCur != null || r.stb != null) ? (r.ltdNon || 0) + (r.ltdCur || 0) + (r.stb || 0) : null;
   r.fcf = r.cfo != null && r.capex != null ? r.cfo - r.capex : (r.cfo != null ? r.cfo : null);
@@ -453,7 +469,7 @@ C.factsheetMarkdown = function (fs) {
   if (fs.company) L.push(`Company: SIC ${fs.company.sic || "?"} ${fs.company.sicDescription || ""} · exchange ${fs.company.exchange || "?"} · fiscal year end ${fs.company.fyEnd || "?"} · playbook: ${fs.playbook?.name || "?"}`);
   if (fs.tech) { const t = fs.tech; L.push(`Price ${f(t.price)} ${fs.currency || ""} (close ${t.date}, ${fs.priceSource || ""}) · 52w ${f(t.low52)}–${f(t.high52)} · 1m ${U.pct(t.ret.m1)} · 3m ${U.pct(t.ret.m3)} · 1y ${U.pct(t.ret.y1)} · ADV $${f(t.adv20)}`); }
   const v = fs.valuation;
-  if (v) L.push(`Valuation: mkt cap $${f(v.marketCap)} · EV $${f(v.ev)} · P/E TTM ${f(v.pe, 1)} · EV/EBITDA ${f(v.evEbitda, 1)} · EV/Sales ${f(v.evSales, 1)} · P/FCF ${f(v.pFcf, 1)} · FCF yield ${U.pct(v.fcfYield)} · FCF-after-SBC yield ${U.pct(v.fcfSbcYield)} · dividend yield ${U.pct(v.divYield)} · buyback yield ${U.pct(v.buybackYield)} · shares ${f(v.shares)}`);
+  if (v) L.push(`Valuation: mkt cap $${f(v.marketCap)} · EV $${f(v.ev)} · P/E TTM ${f(v.pe, 1)} · EV/EBITDA ${f(v.evEbitda, 1)} · EV/Sales ${f(v.evSales, 1)} · P/FCF ${f(v.pFcf, 1)} · FCF yield ${U.pct(v.fcfYield)} · FCF-after-SBC yield ${U.pct(v.fcfSbcYield)} · dividend yield ${U.pct(v.divYield)} · buyback yield ${U.pct(v.buybackYield)} · shares ${f(v.shares)}${v.shareSource ? " (" + v.shareSource + ")" : ""}`);
   if (fs.reverseDcf) { const r = fs.reverseDcf; L.push(`Reverse DCF (${r.method}, r=${(r.r * 100).toFixed(1)}%, g=${(r.g * 100).toFixed(1)}%, ${r.years}y): price implies ${isN(r.impliedGrowth) ? U.pct(r.impliedGrowth) + " annual growth" : r.note}`); }
   if (fs.yearMetrics?.length) {
     L.push("\n| FY | Revenue | Growth | Gross m | Op m | FCF | FCF−SBC | ROIC | Accruals | ND/EBITDA |\n|---|---|---|---|---|---|---|---|---|---|");

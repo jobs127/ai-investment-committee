@@ -140,6 +140,14 @@ PL.execute = async function (run, hooks) {
           schemaKey: seat.id, unified: true, maxUses: n > 0 ? globalCap(st) : (+st.searchDepth && run.engine === "api" ? globalCap(st) : 0), signal: hooks.signal,
           onText: txt => { rep.text = txt; upd(run, seat.id, "stream"); }, onSearch: q => { rep.searches.push(q); upd(run, seat.id, "stream"); }});
         Object.assign(rep, {text: out.text, data: out.data, sources: out.sources, usage: out.usage, status: "done", ms: Date.now() - t0});
+        if (seat.id === "scout" && out.data && run.factsheet && run.factsheet.fin && !run.factsheet.valuation) {
+          const d = out.data, px = run.factsheet.tech?.price;
+          const sh = U.num(d.shares_outstanding) || (U.num(d.market_cap) && px ? U.num(d.market_cap) / px : null);
+          if (sh && AIC.valuate(run.factsheet, sh, U.num(d.shares_outstanding) ? "shares from Data Scout (web, verify)" : "implied from Data Scout market cap (web, verify)", st)) {
+            const fs = run.factsheet; fs.notes = (fs.notes || []).filter(n => !/^Valuation pending/.test(n));
+            fs.leading = C.leadingSignals(fs); fs.markdown = C.factsheetMarkdown(fs); run.reports.desk.text = fs.markdown;
+          }
+        }
         if (seat.id === "scout" && (!run.factsheet || run.factsheet.status !== "ok") && out.data) {
           run.playbook = AIC.pickPlaybook(null, out.data.sector, out.data.instrument_type);
           if (run.factsheet) run.factsheet.playbook = run.playbook;
