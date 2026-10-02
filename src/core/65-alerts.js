@@ -14,6 +14,7 @@ const isN = U.isNum;
 AL.SENTINELS = [
   {id: "sec",     code: "SEC", name: "SEC Filings",          stage: 0, free: true, color: "var(--c-desk)",     blurb: "8-Ks, insider buys & sales, 144s, 13D/G stakes, offerings, late filings"},
   {id: "tape",    code: "PX",  name: "Price & Calendar",     stage: 0, free: true, color: "var(--c-chart)",    blurb: "Big moves, unusual volume, 52-week extremes, your price levels, earnings dates"},
+  {id: "feeds",   code: "FD",  name: "Direct Feeds",         stage: 0, free: true, color: "var(--c-sent)",     blurb: "StockTwits, Reddit, YouTube, podcasts, Google News, SEC full-text — and measured buzz"},
   {id: "keys",    code: "KW",  name: "Keyword Finder",       stage: 1, color: "var(--c-member)",   blurb: "Works out what to search for: company names, people, products, places, customers, rivals"},
   {id: "news",    code: "NW",  name: "News & Trade Press",   stage: 2, search: 4, cadence: "daily",  color: "var(--c-scout)",    blurb: "Company news, deals, contracts, lawsuits, accidents, trade publications"},
   {id: "press",   code: "NP",  name: "Newspapers",           stage: 2, search: 3, cadence: "daily",  color: "var(--c-historian)", blurb: "National papers and local papers where the company operates"},
@@ -132,7 +133,7 @@ AL.scanSec = async function (ticker, since, {signal} = {}) {
     }
   }
   const earnings = D.recentFilings(sub).filter(f => /^8-K/.test(f.form) && /2\.02/.test(f.items || "")).map(f => f.date);
-  return {status: "done", items, name: sub.name || "", earnings, note: `${all.length} filing${all.length === 1 ? "" : "s"} since ${since}`};
+  return {status: "done", items, name: sub.name || "", cik, earnings, note: `${all.length} filing${all.length === 1 ? "" : "s"} since ${since}`};
 };
 AL.scanTape = async function (ticker, since, ctx = {}, {signal} = {}) {
   const D = AIC.data; if (!D.available()) return {status: "offline", items: [], note: "No data gateway — price checks skipped."};
@@ -159,6 +160,101 @@ AL.scanTape = async function (ticker, since, ctx = {}, {signal} = {}) {
   if (e) { const next = U.addDays(e, 91), days = U.daysBetween(U.today(), next);
     if (days >= -3 && days <= 10) items.push({key: "cal:earn:" + next.slice(0, 7), seat: "tape", title: `Earnings expected around ${next}`, summary: `Based on the last results filing (${e}). Check the company's investor-relations page for the exact date.`, url: "", source: "Calendar estimate", date: U.today(), kind: "calendar", importance: 2, reputable: true, sentiment: "neutral"}); }
   return {status: "done", items, price: last.c, note: `$${last.c.toFixed(2)} on ${last.t}`};
+};
+
+/* ---------------- direct feeds (free): read the platforms' own data instead of hoping web search finds them ---------------- */
+const shortName = n => String(n || "").replace(/,?\s+(Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|plc|LLC|L\.P\.|LP|Holdings?|Group)\.?$/i, "").replace(/,?\s+(Inc|Corp)\.?$/i, "").trim();
+const clip = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+const median = a => { a = a.filter(isN).sort((x, y) => x - y); return a.length ? a[Math.floor((a.length - 1) / 2)] : null; };
+const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
+AL.FEED_SOURCES = {stocktwits: "StockTwits", reddit: "Reddit", youtube: "YouTube", podcasts: "Podcasts (Apple)", gnews: "Google News", secfts: "SEC full-text search", wiki: "Wikipedia views"};
+AL.scanFeeds = async function (ticker, since, c = {}, {signal} = {}) {
+  const D = AIC.data;
+  if (!D.available()) return {status: "offline", items: [], feed: {}, notes: {}, note: "No data gateway — direct feeds skipped."};
+  const name = shortName(c.name || c.keywords?.company_name || ""), T = U.normTicker(ticker), sinceMs = Date.parse(since + "T00:00:00Z") || Date.now() - 7 * 864e5;
+  const q = name ? `"${name}"` : T, feed = {}, notes = {}, wk = Date.now() - 7 * 864e5;
+  const run = async (key, fn) => { try { feed[key] = await fn(); notes[key] = `${feed[key].length} new`; } catch (e) { feed[key] = []; notes[key] = e.code === "not_setup" ? "not set up" : "unavailable (" + String(e.message).slice(0, 60) + ")"; } };
+  const buzz = {date: U.today()};
+  await Promise.all([
+    run("stocktwits", async () => {
+      const j = await D.get(`https://api.stocktwits.com/api/2/streams/symbol/${encodeURIComponent(T)}.json`, {type: "json", signal});
+      const msgs = (j.messages || []).map(m => ({src: "stocktwits", id: m.id, title: clip(m.body, 280), url: `https://stocktwits.com/${m.user?.username}/message/${m.id}`, date: m.created_at, author: m.user?.username, sentiment: m.entities?.sentiment?.basic || "", score: m.likes?.total || 0}));
+      const day = msgs.filter(m => Date.parse(m.date) > Date.now() - 864e5);
+      buzz.st24 = day.length; buzz.stCapped = day.length >= msgs.length && msgs.length >= 30;
+      if (buzz.stCapped) { const ts = msgs.map(m => Date.parse(m.date)), span = (Math.max(...ts) - Math.min(...ts)) / 3600e3; buzz.st24 = Math.round(msgs.length * 24 / Math.max(span, 0.5)); } // busy: estimate the daily rate buzz.stFollowers = j.symbol?.watchlist_count ?? null;
+      buzz.stBull = day.filter(m => m.sentiment === "Bullish").length; buzz.stBear = day.filter(m => m.sentiment === "Bearish").length;
+      return msgs.filter(m => Date.parse(m.date) >= sinceMs).slice(0, 30);
+    }),
+    run("reddit", async () => {
+      const terms = [name ? `"${name}"` : "", `"$${T}"`, T.length > 2 ? `"${T}"` : ""].filter(Boolean).join(" OR ");
+      const j = await D.gatewayRoute("/reddit", {q: terms, t: "month"}, {signal});
+      const posts = (j.posts || []).map(p => ({src: "reddit", id: p.id, title: clip(p.title, 200), text: clip(p.text, 300), url: p.url, date: new Date(p.created * 1000).toISOString(), author: "r/" + p.sub, score: p.score, comments: p.comments}));
+      buzz.reddit7 = posts.filter(p => Date.parse(p.date) > wk).length;
+      return posts.filter(p => Date.parse(p.date) >= sinceMs).slice(0, 30);
+    }),
+    run("youtube", async () => {
+      const j = await D.gatewayRoute("/youtube", {q: name ? `"${name}" | ${T} stock` : `${T} stock`, after: new Date(Math.min(sinceMs, Date.now() - 864e5)).toISOString()}, {signal});
+      const v = (j.videos || []).map(x => ({src: "youtube", id: x.id, title: clip(x.title, 200), text: clip(x.text, 200), url: x.url, date: x.published, author: x.channel}));
+      buzz.yt7 = v.filter(x => Date.parse(x.date) > wk).length; return v.slice(0, 20);
+    }),
+    run("podcasts", async () => {
+      const who = [name || T].concat((c.keywords?.people || []).slice(0, 1).map(p => typeof p === "string" ? p : p.name)).filter(Boolean);
+      const out = [];
+      for (const term of who) {
+        const j = await D.get(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=podcastEpisode&limit=25`, {type: "json", signal});
+        (j.results || []).forEach(e => out.push({src: "podcasts", id: e.trackId, title: clip(e.trackName, 200), text: clip(e.shortDescription || e.description, 240), url: e.trackViewUrl, date: e.releaseDate, author: e.collectionName}));
+      }
+      const win = Math.min(sinceMs, Date.now() - 21 * 864e5); // podcasts: look back three weeks
+      return [...new Map(out.map(x => [x.id, x])).values()].filter(x => Date.parse(x.date) >= win).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15);
+    }),
+    run("gnews", async () => {
+      const xml = await D.get(`https://news.google.com/rss/search?q=${encodeURIComponent(`${q} OR "${T}" when:7d`)}&hl=en-US&gl=US&ceid=US:en`, {signal});
+      const items = U.xmlAll(xml, "item").map(it => ({src: "gnews", title: clip(U.xmlOne(it, "title").replace(/<!\[CDATA\[|\]\]>/g, "").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"'), 200), url: U.xmlOne(it, "link").trim(), date: new Date(U.xmlOne(it, "pubDate")).toISOString(), author: U.xmlOne(it, "source").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&")}));
+      buzz.news7 = items.length; return items.filter(x => Date.parse(x.date) >= sinceMs).slice(0, 30);
+    }),
+    run("secfts", async () => {
+      if (!name) return [];
+      const j = await D.get(`https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent('"' + name + '"')}&dateRange=custom&startdt=${since}&enddt=${U.today()}`, {type: "json", signal});
+      const own = String(c.cik || "").replace(/^0+/, "");
+      return (j.hits?.hits || []).map(h => { const s = h._source || {}, [adsh, file] = String(h._id || "").split(":"), cik = String((s.ciks || [])[0] || "").replace(/^0+/, "");
+        return {src: "secfts", id: h._id, title: clip(`${(s.display_names || [])[0] || "A filer"} mentions ${name} in a ${s.form || s.file_type || "filing"}`, 200), url: cik && adsh ? `https://www.sec.gov/Archives/edgar/data/${cik}/${adsh.replace(/-/g, "")}/${file || ""}` : "", date: s.file_date, author: (s.display_names || [])[0] || "", cik}; })
+        .filter(x => x.cik && x.cik !== own).slice(0, 15);
+    }),
+    run("wiki", async () => {
+      if (!name) return [];
+      let title = c.wikiTitle;
+      if (!title) { const j = await D.get(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(name)}&format=json&srlimit=1`, {type: "json", signal});
+        const t = j.query?.search?.[0]?.title || ""; if (!t || !t.toLowerCase().includes(name.toLowerCase().split(" ")[0])) throw new Error("no matching article"); title = t; }
+      buzz.wikiTitle = title;
+      const end = new Date(Date.now() - 864e5), start = new Date(Date.now() - 61 * 864e5);
+      const j = await D.get(`https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/${encodeURIComponent(title.replace(/ /g, "_"))}/daily/${ymd(start)}/${ymd(end)}`, {type: "json", signal});
+      const v = (j.items || []).map(x => x.views); if (v.length < 10) throw new Error("too little history");
+      buzz.wikiLast = v[v.length - 1]; buzz.wikiMed = median(v.slice(-31, -1)); buzz.wikiSeries = v.slice(-30);
+      return [];
+    })
+  ]);
+  // measured buzz: compare with this ticker's own normal (needs a few days of history, except Wikipedia which has 60 days)
+  const hist = (c.buzzHist || []).filter(h => h.date !== buzz.date);
+  const spikes = [], ratio = (now, base) => isN(now) && isN(base) && base > 0 ? now / base : null;
+  const check = (k, label, min, mult) => { const base = median(hist.map(h => h[k])); const r = ratio(buzz[k], base); buzz[k + "Base"] = base;
+    if (hist.filter(h => isN(h[k])).length >= 5 && isN(buzz[k]) && buzz[k] >= min && r >= mult) spikes.push({k, label, now: buzz[k], base, r}); };
+  check("st24", "StockTwits messages (24 h)", 10, 3); check("reddit7", "Reddit posts (7 days)", 5, 3); check("news7", "news articles (7 days)", 8, 2.5); check("yt7", "YouTube videos (7 days)", 4, 3);
+  if (isN(buzz.wikiLast) && isN(buzz.wikiMed) && buzz.wikiLast >= 200 && buzz.wikiLast / Math.max(1, buzz.wikiMed) >= 3) spikes.push({k: "wiki", label: "Wikipedia views (yesterday)", now: buzz.wikiLast, base: buzz.wikiMed, r: buzz.wikiLast / Math.max(1, buzz.wikiMed)});
+  const rs = [ratio(buzz.st24, buzz.st24Base), ratio(buzz.reddit7, buzz.reddit7Base), ratio(buzz.news7, buzz.news7Base), isN(buzz.wikiLast) && buzz.wikiMed ? buzz.wikiLast / buzz.wikiMed : null].filter(isN);
+  buzz.level = spikes.length ? "spiking" : rs.some(r => r >= 1.8) ? "elevated" : rs.length && rs.every(r => r < 0.6) ? "quiet" : rs.length ? "normal" : null;
+  buzz.baselineDays = hist.length; buzz.spikes = spikes;
+  const items = spikes.map(sp => ({key: `buzz:${buzz.date}:${sp.k}`, seat: "feeds", title: `Chatter spike: ${sp.label} ${sp.r.toFixed(1)}× normal`, summary: `${Math.round(sp.now)} vs a usual ${Math.round(sp.base)}. Something is getting attention — check what people are reacting to.`, url: sp.k === "st24" ? `https://stocktwits.com/symbol/${T}` : sp.k === "wiki" && buzz.wikiTitle ? `https://en.wikipedia.org/wiki/${encodeURIComponent(buzz.wikiTitle.replace(/ /g, "_"))}` : "", source: "Measured buzz", date: U.today(), kind: "buzz", importance: sp.r >= 6 ? 4 : 3, reputable: true, sentiment: "neutral"}));
+  const total = Object.values(feed).reduce((a, x) => a + x.length, 0);
+  return {status: "done", items, feed, notes, buzz, note: `${total} posts and articles collected${spikes.length ? " · " + spikes.length + " spike" + (spikes.length > 1 ? "s" : "") : ""}`};
+};
+AL.FEED_FOR = {social: ["stocktwits", "reddit", "youtube"], pods: ["podcasts", "youtube"], news: ["gnews"], press: ["gnews"], analyst: ["gnews"], peers: ["secfts"], shorts: ["gnews", "reddit"]};
+AL.feedLines = function (sw, ticker, seatId) {
+  const f = sw.reports[AL.rk(ticker, "feeds")]?.data?.feed || {}; const srcs = AL.FEED_FOR[seatId] || [];
+  const cap = {stocktwits: 12, reddit: 12, youtube: 6, podcasts: 10, gnews: 20, secfts: 10};
+  let rows = srcs.flatMap(k => (f[k] || []).slice(0, seatId === "analyst" || seatId === "shorts" ? 40 : cap[k] || 10));
+  if (seatId === "analyst") rows = rows.filter(x => /upgrade|downgrade|price target|initiat|rating|analyst|outperform|underperform|overweight|underweight|buy rating|sell rating/i.test(x.title));
+  if (seatId === "shorts") rows = rows.filter(x => /short|13F|stake|holder|index|S&P|Russell|rating|Moody|Fitch|debt|notes due/i.test(x.title + " " + (x.text || "")));
+  return rows.slice(0, seatId === "social" ? 30 : 20).map(x => `- [${AL.FEED_SOURCES[x.src] || x.src}] ${String(x.date || "").slice(0, 10)} ${x.author ? x.author + ": " : ""}${x.title}${x.text ? " — " + clip(x.text, 160) : ""}${x.sentiment ? " (" + x.sentiment + ")" : ""}${isN(x.score) && x.src === "reddit" ? ` (${x.score} upvotes, ${x.comments} comments)` : ""} ${x.url || ""}`);
 };
 
 /* ---------------- prompts ---------------- */
@@ -207,8 +303,10 @@ AL.seatTask = function (sw, ticker, seatId) {
   if (seatId === "pods" && kwList(k, "people", 1).length) who += `. Executives: ${kwList(k, "people", 6).join(", ")}`;
   if (["news", "press"].includes(seatId) && kwList(k, "industry_terms", 1).length) who += `. Useful industry terms: ${kwList(k, "industry_terms", 6).join(", ")}`;
   if (kwList(k, "avoid", 1).length) who += `. Do NOT confuse with: ${kwList(k, "avoid", 6).join(", ")}`;
-  const n = AL.searchesFor(seatId, sw);
+  const n = AL.searchesFor(seatId, sw, ticker);
   let t = `ALERT SENTINEL: ${s.name.toUpperCase()} — ${ticker}\nWindow: items published from ${c.since} to today (${U.today()}).\n\n` + TASKS[seatId]({who, since: c.since, reputableOnly: sw.reputableOnly});
+  const fl = AL.feedLines(sw, ticker, seatId);
+  if (fl.length) t += `\n\nDIRECT FEED — collected by code from the platforms themselves (newest first). Report the ones that matter, using their URLs; use web search for what this feed misses:\n${fl.join("\n")}`;
   t += `\n\nYou have up to ${n} web search${n === 1 ? "" : "es"}. Spend them on new information.`;
   if ((c.seenTitles || []).length) t += `\n\nALREADY REPORTED (do not repeat unless there is a real update):\n${c.seenTitles.slice(0, 25).map(x => "- " + x).join("\n")}`;
   return t;
@@ -228,7 +326,7 @@ THESIS AND MONITORING LINES:
 ${(c.thesis || []).length ? c.thesis.map(x => "- " + x).join("\n") : "(none recorded — judge importance from the facts)"}
 ${c.below || c.above ? `PRICE LEVELS: below ${c.below || "–"}, above ${c.above || "–"}` : ""}
 
-ALREADY REPORTED:
+${AL.prefsText(sw.prefs)}ALREADY REPORTED:
 ${(c.seenTitles || []).slice(0, 30).map(x => "- " + x).join("\n") || "(nothing yet)"}
 
 CANDIDATES:
@@ -238,7 +336,9 @@ Write two or three sentences for the owner, then the JSON block.`;
 };
 
 /* ---------------- sweeps ---------------- */
-AL.searchesFor = (seatId, sw) => { const s = AL.sentinel(seatId); return s.search ? Math.max(1, Math.round(s.search * (+sw.searchDepth || 1))) : 0; };
+AL.searchesFor = (seatId, sw, ticker) => { const s = AL.sentinel(seatId); if (!s.search) return 0; let n = Math.max(1, Math.round(s.search * (+sw.searchDepth || 1)));
+  if (ticker && AL.feedLines(sw, ticker, seatId).length >= 8) n = Math.max(1, n - 1); // the direct feed already covers part of the ground
+  return n; };
 AL.modelFor = (seatId, sw, st) => {
   const max = sw.plan === "max";
   if (seatId === "desk") return max ? (st.judgeModel || AIC.DEFAULTS.judgeModel) : (st.analystModel || AIC.DEFAULTS.analystModel);
@@ -248,11 +348,11 @@ const safeId = t => String(t).replace(/[^A-Za-z0-9]/g, "-");
 AL.rk = (ticker, seat) => ticker + "|" + seat;
 
 /* ctx per ticker: {since, terms, below, above, seenTitles, seenKeys, thesis, lastWeekly} · scope: "all" (on demand) or "scheduled" (cadence) */
-AL.newSweep = function ({tickers, ctx, plan, searchDepth, reputableOnly, blocked, urgentRule, scope, engine}) {
+AL.newSweep = function ({tickers, ctx, plan, searchDepth, reputableOnly, blocked, urgentRule, scope, engine, prefs}) {
   plan = AIC.PLANS[plan] ? plan : "saver";
   const sw = {id: U.uid(), kind: "sweep", createdAt: Date.now(), tickers: tickers.slice(), ctx: {}, plan, engine: engine || "api", batch: !!AIC.PLANS[plan].batch, lean: true,
     searchDepth: +searchDepth || 1, reputableOnly: !!reputableOnly, blocked: reputableOnly ? String(blocked || "").split(/[\s,]+/).map(x => x.trim().toLowerCase()).filter(Boolean) : [],
-    urgentRule: urgentRule || "thesis", scope: scope || "all", plan_text: AL.PLAN_TEXT[plan].short, seats: AL.SENTINELS.map(s => s.id), tasks: {}, reports: {}, results: {}, status: "running", extraUsage: null, appVersion: AIC.VERSION};
+    urgentRule: urgentRule || "thesis", scope: scope || "all", prefs: AL.prefsFrom(prefs), plan_text: AL.PLAN_TEXT[plan].short, seats: AL.SENTINELS.map(s => s.id), tasks: {}, reports: {}, results: {}, status: "running", extraUsage: null, appVersion: AIC.VERSION};
   for (const t of tickers) {
     const c = Object.assign({since: U.addDays(U.today(), -7), seenTitles: [], seenKeys: [], thesis: []}, ctx[t] || {});
     sw.ctx[t] = c;
@@ -279,6 +379,19 @@ AL.candidates = function (sw, ticker) {
   return out;
 };
 AL.keyOf = it => { if (it.url) { try { const u = new URL(it.url); return "u:" + u.hostname.replace(/^www\./, "") + u.pathname.replace(/\/$/, ""); } catch {} } return "t:" + String(it.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 80); };
+/* the owner's Useful / Noise feedback: examples for the Alert Desk, plus sources muted after repeated "noise" */
+AL.hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+AL.prefsFrom = function (p) {
+  p = p || {}; const fb = Array.isArray(p.feedback) ? p.feedback : [];
+  const byHost = {}; fb.forEach(f => { if (!f.host) return; const h = byHost[f.host] = byHost[f.host] || {u: 0, n: 0}; if (f.v === "useful") h.u++; else h.n++; });
+  const auto = Object.entries(byHost).filter(([, v]) => v.n >= 3 && v.u === 0).map(([k]) => k);
+  const muted = [...new Set((p.muted || []).concat(auto))].filter(h => !(p.unmuted || []).includes(h));
+  const ex = v => fb.filter(f => f.v === v).slice(0, 12).map(f => `${f.seat ? (AL.sentinel(f.seat)?.name || f.seat) + " · " : ""}${f.kind ? f.kind + " · " : ""}${f.title}`);
+  return {useful: ex("useful"), noise: ex("noise"), muted};
+};
+AL.prefsText = p => !p || (!p.useful.length && !p.noise.length) ? "" : `OWNER FEEDBACK — calibrate to it:
+${p.useful.length ? "Found USEFUL (rank items like these higher):\n" + p.useful.map(x => "+ " + x).join("\n") + "\n" : ""}${p.noise.length ? "Marked as NOISE (leave out or rank low items like these):\n" + p.noise.map(x => "- " + x).join("\n") + "\n" : ""}
+`;
 AL.isUrgent = (it, rule) => rule === "medium" ? it.importance >= 3 || !!it.thesisHit : rule === "high" ? it.importance >= 4 : it.importance >= 4 || !!it.thesisHit;
 
 /* turn the desk's edit into final items (falls back to the raw candidates if the desk failed) */
@@ -293,11 +406,13 @@ AL.finalize = function (sw, ticker) {
     for (const e of d.items) { const c = cands[+e.ref]; if (!c || used.has(+e.ref) || e.novelty === "repeat") continue; used.add(+e.ref); (e.also || []).forEach(i => used.add(+i)); items.push(mk(c, e)); }
     cands.forEach((c, i) => { if (!used.has(i) && c.importance >= 4 && (c.seat === "sec" || c.seat === "tape")) items.push(mk(c)); }); // never lose a code-detected major event
   } else items = cands.map(c => mk(c));
+  const muted = new Set(sw.prefs?.muted || []);
+  if (muted.size) items = items.filter(it => !muted.has(AL.hostOf(it.url)) || it.seat === "sec" || it.seat === "tape" || it.seat === "feeds");
   items.forEach(it => it.urgent = AL.isUrgent(it, sw.urgentRule));
   items.sort((a, b) => (b.urgent - a.urgent) || (b.importance - a.importance) || String(b.date).localeCompare(String(a.date)));
-  const social = sw.reports[AL.rk(ticker, "social")]?.data;
+  const social = sw.reports[AL.rk(ticker, "social")]?.data, measured = sw.reports[AL.rk(ticker, "feeds")]?.data?.buzz;
   sw.results[ticker] = {items, headline: d?.headline || (items.length ? items[0].title : "Quiet — nothing new found."), mood: d?.mood || (items.length ? "mixed" : "quiet"),
-    buzz: social?.buzz || null, tone: social?.tone || null, price: sw.ctx[ticker]?.price ?? null, name: sw.ctx[ticker]?.name || ""};
+    buzz: measured?.level || social?.buzz || null, buzzMeasured: !!measured?.level, tone: social?.tone || null, price: sw.ctx[ticker]?.price ?? null, name: sw.ctx[ticker]?.name || ""};
   return sw.results[ticker];
 };
 
@@ -320,14 +435,15 @@ AL.execute = async function (sw, hooks) {
   // stage 0: free checks, in code
   for (const t of sw.tickers) {
     const c = sw.ctx[t];
-    for (const id of ["sec", "tape"]) {
+    for (const id of ["sec", "tape", "feeds"]) {
       const r = sw.reports[AL.rk(t, id)]; if (!r || r.status === "done") continue;
       r.status = "running"; const t0 = Date.now(); upd(sw, AL.rk(t, id));
       try {
-        const out = id === "sec" ? await AL.scanSec(t, c.since, {signal: hooks.signal}) : await AL.scanTape(t, c.since, c, {signal: hooks.signal});
-        if (id === "sec") { if (out.name && !c.name) c.name = out.name.replace(/,? (Inc|Corp|Corporation|Co|Ltd|plc|LLC)\.?$/i, ""); c.earnings = out.earnings || []; }
+        const out = id === "sec" ? await AL.scanSec(t, c.since, {signal: hooks.signal}) : id === "tape" ? await AL.scanTape(t, c.since, c, {signal: hooks.signal}) : await AL.scanFeeds(t, c.since, c, {signal: hooks.signal});
+        if (id === "sec") { if (out.name && !c.name) c.name = out.name.replace(/,? (Inc|Corp|Corporation|Co|Ltd|plc|LLC)\.?$/i, ""); c.earnings = out.earnings || []; if (out.cik) c.cik = out.cik; }
         if (id === "tape" && isN(out.price)) c.price = out.price;
-        Object.assign(r, {status: "done", data: {items: out.items}, text: out.note || "", ms: Date.now() - t0, offline: out.status === "offline"});
+        if (id === "feeds") { c.buzzToday = out.buzz || null; if (out.buzz?.wikiTitle) c.wikiTitle = out.buzz.wikiTitle; }
+        Object.assign(r, {status: "done", data: {items: out.items, feed: out.feed, notes: out.notes, buzz: out.buzz}, text: out.note || "", ms: Date.now() - t0, offline: out.status === "offline"});
       } catch (e) { Object.assign(r, {status: "done", data: {items: []}, text: "Check failed: " + e.message, error: null, ms: Date.now() - t0}); }
       upd(sw, AL.rk(t, id));
     }
@@ -353,7 +469,7 @@ AL.execute = async function (sw, hooks) {
   for (const t of sw.tickers) for (const id of (sw.tasks[t] || []).filter(x => AL.WEB.includes(x))) {
     const r = sw.reports[AL.rk(t, id)]; if (["done", "skipped"].includes(r.status)) continue;
     if (r.status !== "waiting") Object.assign(r, {text: "", data: null, sources: [], searches: [], error: null});
-    const model = AL.modelFor(id, sw, st), n = AL.searchesFor(id, sw);
+    const model = AL.modelFor(id, sw, st), n = AL.searchesFor(id, sw, t);
     jobs.push({id: AL.rk(t, id), customId: safeId(t) + "_" + id, target: r,
       o: {engine: "api", settings: st, apiKey: hooks.apiKey, model, system, blocks: [], task: AL.seatTask(sw, t, id), schemaKey: "al_" + id, maxUses: n, maxTokens: 3000, blockedDomains: sw.blocked},
       onDone: out => Object.assign(r, {text: out.text, data: out.data || {items: []}, sources: out.sources, searches: out.searches || r.searches, usage: out.usage, status: "done", model, ms: r.t0 ? Date.now() - r.t0 : 0})});
@@ -401,6 +517,10 @@ AL.nextContext = function (prev, sw, ticker) {
   c.since = U.today(); c.lastSweep = sw.createdAt;
   if ((sw.tasks[ticker] || []).some(id => AL.sentinel(id)?.cadence === "weekly")) c.lastWeekly = U.today();
   if (sw.ctx[ticker]?.name) c.name = sw.ctx[ticker].name;
+  const bz = sw.ctx[ticker]?.buzzToday;
+  if (bz) { const {date, st24, reddit7, news7, yt7, wikiLast, stFollowers} = bz; c.buzzHist = [{date, st24, reddit7, news7, yt7, wikiLast, stFollowers}].concat((c.buzzHist || []).filter(h => h.date !== date)).slice(0, 60); }
+  if (sw.ctx[ticker]?.wikiTitle) c.wikiTitle = sw.ctx[ticker].wikiTitle;
+  if (sw.ctx[ticker]?.cik) c.cik = sw.ctx[ticker].cik;
   if (sw.ctx[ticker]?.keywords) { c.keywords = sw.ctx[ticker].keywords; c.keywordsAt = sw.ctx[ticker].keywordsAt; }
   return c;
 };

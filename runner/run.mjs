@@ -36,6 +36,8 @@ const summary = md => { if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(p
 const KEY = process.env.ANTHROPIC_API_KEY;
 A.env.direct = true;
 A.env.userAgent = process.env.SEC_USER_AGENT || "AI Investment Committee runner contact@example.com";
+// optional: reach the gateway's Reddit and YouTube routes (keys stay in Cloudflare)
+if (process.env.AIC_GATEWAY_URL) A.env.gwExtra = {url: process.env.AIC_GATEWAY_URL, token: process.env.AIC_GATEWAY_TOKEN || ""};
 const wl = readJSON("watchlist.json", {tickers: [], profile: {}, settings: {}});
 const settings = Object.assign({}, A.DEFAULTS, wl.settings || {});
 if (process.env.AIC_PLAN) settings.plan = process.env.AIC_PLAN;
@@ -179,7 +181,7 @@ async function processAlerts({now: force = false} = {}) {
   // 1. start the morning sweep (4:30 am Central so Saver's batch is done by 6:30)
   if (!stt.pending && ((now.weekday && now.hm >= 430 && stt.started !== now.date) || force)) {
     const ctx = {}; list.forEach(w => ctx[U.normTicker(w.ticker)] = alertCtx(stt, w));
-    const sw = AL.newSweep({tickers: list.map(w => U.normTicker(w.ticker)), ctx, plan: AS.plan, searchDepth: AS.searchDepth, reputableOnly: AS.reputableOnly, blocked: AS.blocked, urgentRule: AS.urgentRule, scope: force ? "all" : "scheduled"});
+    const sw = AL.newSweep({tickers: list.map(w => U.normTicker(w.ticker)), ctx, plan: AS.plan, searchDepth: AS.searchDepth, reputableOnly: AS.reputableOnly, blocked: AS.blocked, urgentRule: AS.urgentRule, scope: force ? "all" : "scheduled", prefs: ALERTS.feedback || null});
     stt.pending = sw.id; stt.started = now.date; stt.tries = 0; writeJSON(`results/alerts/pending/${sw.id}.json`, sw); log(`Alerts: sweep ${sw.id} started`);
   }
   // 2. advance it

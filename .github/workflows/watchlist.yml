@@ -39,6 +39,8 @@ jobs:
           SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          AIC_GATEWAY_URL: ${{ secrets.AIC_GATEWAY_URL }}
+          AIC_GATEWAY_TOKEN: ${{ secrets.AIC_GATEWAY_TOKEN }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then echo "No ANTHROPIC_API_KEY secret yet — nothing to do."; exit 0; fi
           ARGS=""

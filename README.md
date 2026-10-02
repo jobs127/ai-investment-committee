@@ -1,4 +1,4 @@
-# AI Investment Committee + AI Stock Alert System — v6.1
+# AI Investment Committee + AI Stock Alert System — v6.2
 
 Two apps in one page. The switch in the header chooses between them; they share your API key, the data gateway, GitHub, plans and settings.
 - **Investment Committee** — a deep, one-off analysis of one stock (below).
@@ -20,6 +20,8 @@ The app is still one HTML file, so it runs in Chrome on a Chromebook with nothin
 | Stage | Sentinel | Looks for | When |
 |---|---|---|---|
 | 0 · free | SEC Filings | 8-K items (results, exec changes, impairments, auditor change, non-reliance…), insider buys and sales (Form 4), planned sales (144), 13D/13G stakes, offerings (S-3/424B), late-filing notices, deals, delistings | every sweep + every 30 min in market hours |
+| 0 · free | Direct Feeds | Reads the platforms themselves: StockTwits, Reddit*, YouTube*, Apple Podcasts, Google News, SEC full-text search (other companies' filings naming yours) — and **measures buzz** against the stock's own normal (StockTwits, Reddit, news, YouTube, Wikipedia views), alerting on spikes | every sweep |
+| 1 | Keyword Finder | AI works out names, executives, products, places, customers, rivals and look-alikes to ignore (reused 30 days) | when new or stale |
 | 0 · free | Price & Calendar | moves ≥5%, unusual volume, 52-week highs/lows, your price levels, upcoming earnings | every sweep + every 30 min in market hours |
 | 1 | News & Trade Press | company news and industry trade publications | daily |
 | 1 | Newspapers | national papers and local papers where the company operates | daily |
@@ -30,6 +32,10 @@ The app is still one HTML file, so it runs in Chrome on a Chromebook with nothin
 | 1 | Customers & Rivals | read-through from customers, competitors and suppliers | weekly |
 | 1 | Shorts & Ownership | short reports, short interest, big holders, index changes, credit ratings | weekly |
 | 2 | Alert Desk | removes duplicates and repeats, scores importance 1–5, checks your thesis, writes a one-line headline per stock | every sweep (free when nothing is new) |
+
+\* Reddit and YouTube need free keys stored on your Cloudflare worker (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `YOUTUBE_API_KEY`); Settings → Alerts walks you through it and has a **Check my gateway** button. For the GitHub morning digest to use them too, add the repository secrets `AIC_GATEWAY_URL` and `AIC_GATEWAY_TOKEN`. X/Twitter, Facebook, Instagram, TikTok and LinkedIn have no practical free access; the Social Chatter sentinel still reports what web search finds there.
+
+**▲ Useful / ▼ Noise** on every alert teaches the Alert Desk what you care about; a site marked noise three times (and never useful) is muted. Settings → Alerts lists muted sites. Export alerts.json again so the morning digest learns too.
 
 **On the Feed screen** you choose the plan (Saver / Balanced / Max), the web search depth (Light / Standard / Deep), and **Sources: All, incl. social** or **Reputable only** (drops Reddit, StockTwits, X, forums and anonymous blogs — edit that list in Settings → Alerts). **Sweep now** runs every sentinel for all tickers or one. Alerts are ranked, marked Urgent / Unverified / Update, show which thesis line they hit (from your Committee runs and Thesis tracker), and link to the source; **Committee →** opens a full analysis.
 

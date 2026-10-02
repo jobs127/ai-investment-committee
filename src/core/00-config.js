@@ -3,7 +3,7 @@
 "use strict";
 const AIC = G.AIC = G.AIC || {};
 
-AIC.VERSION = "6.1.0";
+AIC.VERSION = "6.2.0";
 AIC.PROMPT_VERSION = "p6.3";
 
 AIC.DEFAULTS = {

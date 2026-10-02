@@ -1,8 +1,9 @@
 /* Preload for testing the runner offline: node -r ./tests/fetch-mock.cjs runner/run.mjs ... */
-const {fixtureFor, anthropicSSE, batchMock} = require("./mock");
+const {fixtureFor, anthropicSSE, batchMock, socialRoute} = require("./mock");
 const BM = batchMock(1, process.env.AIC_MOCK_STATE || null);
 globalThis.fetch = async (url, opts = {}) => {
   url = String(url);
+  if (url.startsWith("https://gw.test")) { const r = socialRoute(url); return new Response(r.json ? JSON.stringify(r.json) : r.text, {status: r.status || 200}); }
   if (/api\.anthropic\.com\/v1\/messages\/batches/.test(url)) { const r = BM.handle(opts.method || "GET", new URL(url).pathname, opts.body); return r.json ? new Response(JSON.stringify(r.json), {status: r.status}) : new Response(r.text, {status: r.status}); }
   if (/api\.anthropic\.com/.test(url)) return new Response(anthropicSSE(JSON.parse(opts.body)), {status: 200, headers: {"content-type": "text/event-stream"}});
   if (/api\.github\.com/.test(url)) { if (!opts.body) return new Response("[]", {status: 200}); const b = JSON.parse(opts.body); console.log("[mock] GitHub " + (b.title ? "issue: " + b.title : "update: " + JSON.stringify(b))); return new Response(JSON.stringify({number: 7}), {status: 201}); }

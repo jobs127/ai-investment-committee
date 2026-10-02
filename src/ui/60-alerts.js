@@ -1,17 +1,19 @@
 /* AI Stock Alert System — screens: Feed (sweep + ranked alerts), Alert list, Sweeps. */
 const AL = A.alerts;
 const ALS = { // alert-system state (its own ticker list, settings, feed and memory)
-  list: [], settings: Object.assign({}, AL.DEFAULTS), feed: [], ctx: {}, index: [], latest: null,
+  list: [], settings: Object.assign({}, AL.DEFAULTS), feed: [], ctx: {}, index: [], latest: null, feedback: [],
   sweep: null, running: false, ctl: null, filter: {imp: "all", ticker: "", showDismissed: false}, sel: "all", open: null
 };
 function alLoad() {
-  ALS.list = LS.get("al.list", []); ALS.settings = Object.assign({}, AL.DEFAULTS, LS.get("al.settings", {}));
+  ALS.feedback = LS.get("al.feedback", []); ALS.list = LS.get("al.list", []); ALS.settings = Object.assign({}, AL.DEFAULTS, LS.get("al.settings", {}));
   ALS.feed = LS.get("al.feed", []); ALS.ctx = LS.get("al.ctx", {}); ALS.index = LS.get("al.index", []); ALS.latest = LS.get("al.latest", null);
 }
 const alPersist = {
   list: () => LS.set("al.list", ALS.list), settings: () => LS.set("al.settings", ALS.settings), feed: () => LS.set("al.feed", ALS.feed.slice(0, 800)),
-  ctx: () => LS.set("al.ctx", ALS.ctx), index: () => LS.set("al.index", ALS.index.slice(0, 120)), latest: () => LS.set("al.latest", ALS.latest)
+  ctx: () => LS.set("al.ctx", ALS.ctx), feedback: () => LS.set("al.feedback", ALS.feedback.slice(0, 200)), index: () => LS.set("al.index", ALS.index.slice(0, 120)), latest: () => LS.set("al.latest", ALS.latest)
 };
+const alPrefs = () => ({feedback: ALS.feedback, muted: ALS.settings.muted || [], unmuted: ALS.settings.unmuted || []});
+const alMuted = () => new Set(AL.prefsFrom(alPrefs()).muted);
 const alOn = () => ALS.list.filter(w => w.ticker && w.on !== false);
 const alUnseen = () => ALS.feed.filter(i => i.status === "new");
 async function alSave(sw) {
@@ -35,7 +37,7 @@ async function alSweep(tickers) {
   const left = Cost.budgetLeft(); if (left != null && est.sweep > left) { toast(`That sweep (≈ $${est.sweep.toFixed(2)}) would go over your monthly budget. Raise it in Settings → Cost & models.`, 8000); return; }
   const ctx = {}; for (const t of tickers) ctx[t] = await alCtxFor(ALS.list.find(w => U.normTicker(w.ticker) === t) || {ticker: t});
   const st = ALS.settings;
-  const sw = AL.newSweep({tickers, ctx, plan: st.plan, searchDepth: st.searchDepth, reputableOnly: st.reputableOnly, blocked: st.blocked, urgentRule: st.urgentRule, scope: "all", engine: S.engine});
+  const sw = AL.newSweep({prefs: alPrefs(), tickers, ctx, plan: st.plan, searchDepth: st.searchDepth, reputableOnly: st.reputableOnly, blocked: st.blocked, urgentRule: st.urgentRule, scope: "all", engine: S.engine});
   await alSave(sw);
   return alExecute(sw);
 }
@@ -105,6 +107,9 @@ function renderAlBoard() {
         const x = AL.seatStatus(sw, s.id); dst = x.status;
         if (x.status === "running") state = `working · ${x.done}/${x.n}`;
         else if (x.status === "waiting") state = `⧗ queued at Anthropic · ${waitMins(x.waiting)}m`;
+        else if (x.status === "done" && s.id === "feeds") { const fd = sw.tickers.map(t => sw.reports[AL.rk(t, "feeds")]?.data).filter(Boolean);
+          const n = fd.reduce((a, d) => a + Object.values(d.feed || {}).reduce((b, x) => b + x.length, 0), 0), sp = fd.reduce((a, d) => a + (d.buzz?.spikes || []).length, 0);
+          state = `✓ ${n} posts & articles${sp ? ` · ${sp} spike${sp > 1 ? "s" : ""}` : ""} · free`; }
         else if (x.status === "done" && s.id === "keys") { const n = sw.tickers.reduce((a, t) => a + kwCount(sw.reports[AL.rk(t, "keys")]?.data), 0), reused = sw.tickers.every(t => sw.reports[AL.rk(t, "keys")]?.reused);
           state = `✓ ${n} keywords${reused ? " · reused · free" : x.usage && U.isNum(x.usage.cost) ? " · $" + x.usage.cost.toFixed(2) : ""}`; }
         else if (x.status === "done") state = `✓ ${x.items} item${x.items === 1 ? "" : "s"}${x.usage && U.isNum(x.usage.cost) ? " · $" + x.usage.cost.toFixed(2) : ""}`;
@@ -140,6 +145,24 @@ function renderAlSeatPanel() {
     const meta = [r.status, r.usage?.searches != null ? `${r.usage.searches} search${r.usage.searches === 1 ? "" : "es"}` : "", r.model ? shortModel(r.model) : (s.free ? "computed in code · free" : ""), r.usage && U.isNum(r.usage.cost) ? "$" + r.usage.cost.toFixed(3) : "",
       id === "social" && r.data?.buzz ? `chatter ${r.data.buzz}${r.data.tone ? " · " + r.data.tone : ""}` : ""].filter(Boolean).join(" · ");
     let h = `<div class="sp-t"><div class="sp-th"><b>${esc(t)}</b><span class="muted small">${esc(meta)}</span></div>`;
+    if (id === "feeds") {
+      const d = r.data || {}, b = d.buzz || {}, notes = d.notes || {};
+      if (r.offline || !d.feed) return h + `<p class="muted small">${esc(r.text || "Not run.")}</p></div>`;
+      const row = (label, now, base, unit) => { const ratio = U.isNum(now) && U.isNum(base) && base > 0 ? now / base : null;
+        return `<tr><td>${esc(label)}</td><td class="num"><b>${U.isNum(now) ? Math.round(now).toLocaleString() : "–"}</b></td><td class="num muted">${U.isNum(base) ? Math.round(base).toLocaleString() : "learning"}</td><td class="num" style="color:${ratio >= 3 ? "var(--bad)" : ratio >= 1.8 ? "var(--warn)" : "var(--fg-2)"}">${ratio ? ratio.toFixed(1) + "×" : "–"}</td><td class="small muted">${esc(unit || "")}</td></tr>`; };
+      const spark = (b.wikiSeries || []).length ? (() => { const v = b.wikiSeries, mx = Math.max(...v, 1); return `<svg class="spark" viewBox="0 0 ${v.length * 4} 24" preserveAspectRatio="none" aria-label="Wikipedia views, last 30 days">${v.map((x, i) => `<rect x="${i * 4}" y="${24 - x / mx * 24}" width="3" height="${x / mx * 24}"/>`).join("")}</svg>`; })() : "";
+      h += `<div class="buzzbox"><div class="buzzhead"><span class="lbl">Measured buzz</span>${b.level ? `<span class="badge buzz-${esc(b.level)}">${esc(b.level)}</span>` : ""}<span class="small muted">${b.baselineDays >= 5 ? `compared with this stock's normal over ${b.baselineDays} days` : `learning this stock's normal: ${b.baselineDays || 0} of 5 days (Wikipedia already has 60 days)`}</span></div>
+        <table class="dt buzz"><thead><tr><th>Signal</th><th>Now</th><th>Usual</th><th>vs usual</th><th></th></tr></thead><tbody>
+        ${row("StockTwits messages, last 24 h", b.st24, b.st24Base, b.stCapped ? "estimated from how fast the latest 30 arrived" : U.isNum(b.stBull) ? `${b.stBull} bullish · ${b.stBear} bearish tags` : "")}
+        ${row("Reddit posts, 7 days", b.reddit7, b.reddit7Base)}${row("News articles, 7 days", b.news7, b.news7Base)}${row("YouTube videos, 7 days", b.yt7, b.yt7Base)}
+        ${row("Wikipedia views, yesterday", b.wikiLast, b.wikiMed, b.wikiTitle ? "vs 30-day median · " + b.wikiTitle : "")}</tbody></table>${spark ? `<div class="sparkrow"><span class="small muted">Wikipedia views, 30 days</span>${spark}</div>` : ""}
+        ${U.isNum(b.stFollowers) ? `<p class="small muted">StockTwits watchers: ${b.stFollowers.toLocaleString()}</p>` : ""}</div>`;
+      h += `<div class="feedsrc">${Object.entries(AL.FEED_SOURCES).filter(([k]) => k !== "wiki").map(([k, label]) => { const n = (d.feed[k] || []).length, note = notes[k] || "";
+        return `<span class="fs ${/not set up/.test(note) ? "off" : /unavailable/.test(note) ? "err" : ""}">${esc(label)}: ${esc(note || "–")}${/not set up/.test(note) ? ` <button class="linkbtn" type="button" data-goset="alerts">set up</button>` : ""}</span>`; }).join("")}</div>`;
+      h += Object.entries(AL.FEED_SOURCES).filter(([k]) => (d.feed[k] || []).length).map(([k, label]) => `<details class="sp-rep"><summary>${esc(label)} — ${d.feed[k].length}</summary><ul class="sp-items">${d.feed[k].map(x => `<li><div class="sp-it">${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>` : esc(x.title)}${x.sentiment ? ` <span class="badge" style="color:${x.sentiment === "Bullish" ? "var(--good)" : "var(--bad)"}">${esc(x.sentiment)}</span>` : ""}</div>${x.text ? `<div class="small">${esc(x.text)}</div>` : ""}<div class="sp-meta">${esc([x.author, String(x.date || "").slice(0, 16).replace("T", " "), U.isNum(x.score) && k === "reddit" ? x.score + " upvotes · " + x.comments + " comments" : ""].filter(Boolean).join(" · "))}</div></li>`).join("")}</ul></details>`).join("");
+      h += `<p class="small muted">These posts go to the sentinels as raw material (StockTwits, Reddit and YouTube → Social Chatter; Apple podcasts and YouTube → Podcasts; Google News → News, Newspapers and Analysts; SEC full-text → Customers & Rivals). Spikes become alerts by themselves.</p>`;
+      return h + `</div>`;
+    }
     if (id === "keys") {
       const k = r.data || ctx.keywords;
       if (!k) return h + `<p class="muted small">${esc(r.status === "done" ? "No keywords returned." : r.status || "")}</p></div>`;
@@ -191,11 +214,13 @@ function renderAlDigest() {
   const ts = Object.keys(L.results);
   box.innerHTML = `<div class="card aldigest"><div class="sechead"><h3 class="h3">Latest sweep · ${esc(new Date(L.at).toLocaleString([], {weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}</h3><span class="muted small">${ts.length} ticker${ts.length === 1 ? "" : "s"}${U.isNum(L.cost) ? " · $" + L.cost.toFixed(2) : ""}</span></div>
     <div class="dg">${ts.map(t => { const r = L.results[t]; const u = r.items.filter(i => i.urgent).length;
-      return `<button type="button" class="dgrow" data-alfilter="${esc(t)}" style="--m:${moodColor(r.mood)}"><span class="tk">${esc(t)}</span><span class="hl">${esc(r.headline)}</span><span class="meta">${u ? `<span class="urg">${u} urgent</span>` : ""}${r.items.length} item${r.items.length === 1 ? "" : "s"}${r.buzz ? ` · chatter ${esc(r.buzz)}` : ""}</span></button>`; }).join("")}</div></div>`;
+      return `<button type="button" class="dgrow" data-alfilter="${esc(t)}" style="--m:${moodColor(r.mood)}"><span class="tk">${esc(t)}</span><span class="hl">${esc(r.headline)}</span><span class="meta">${u ? `<span class="urg">${u} urgent</span>` : ""}${r.items.length} item${r.items.length === 1 ? "" : "s"}${r.buzz ? ` · chatter ${esc(r.buzz)}${r.buzzMeasured ? " (measured)" : ""}` : ""}</span></button>`; }).join("")}</div></div>`;
 }
 function renderAlItems() {
   const f = ALS.filter, box = $("#alFeed");
-  let items = ALS.feed.filter(i => (f.showDismissed || i.status !== "dismissed") && (!f.ticker || i.ticker === f.ticker)
+  const muted = alMuted(), isMuted = i => muted.has(AL.hostOf(i.url)) && !["sec", "tape", "feeds"].includes(i.seat);
+  const hidden = ALS.feed.filter(i => isMuted(i) && i.status !== "dismissed").length;
+  let items = ALS.feed.filter(i => (f.showDismissed || i.status !== "dismissed") && !isMuted(i) && (!f.ticker || i.ticker === f.ticker)
     && (f.imp === "all" || (f.imp === "urgent" ? i.urgent : i.importance >= 3)));
   const tickers = [...new Set(ALS.feed.map(i => i.ticker))].sort();
   const unseen = alUnseen().length;
@@ -206,6 +231,7 @@ function renderAlItems() {
     <button class="btn small" type="button" id="alSync" title="Read the morning digest results from your GitHub repo">⟳ Sync from GitHub</button></div>`;
   if (!ALS.feed.length) { box.innerHTML = h + `<div class="emptybox">No alerts yet. ${alOn().length ? "Press <b>Sweep now</b>, or set up the 6:30 am digest on GitHub (see the Alert list)." : "Start by adding tickers to the <button class='linkbtn' type='button' data-view-go='allist'>Alert list</button>."}</div>`; return; }
   if (!items.length) { box.innerHTML = h + `<div class="emptybox">Nothing matches this filter.</div>`; return; }
+  if (hidden) h += `<p class="small muted">${hidden} alert${hidden === 1 ? "" : "s"} hidden from muted sources · <button class="linkbtn" type="button" data-goset="alerts">manage</button></p>`;
   const day = i => String(i.date || "").slice(0, 10) || new Date(i.foundAt).toISOString().slice(0, 10);
   const groups = {}; items.slice(0, 300).forEach(i => (groups[day(i)] = groups[day(i)] || []).push(i));
   const label = d => d === U.today() ? "Today" : d === U.addDays(U.today(), -1) ? "Yesterday" : new Date(d + "T12:00").toLocaleDateString([], {weekday: "short", month: "short", day: "numeric", year: d.slice(0, 4) === U.today().slice(0, 4) ? undefined : "numeric"});
@@ -227,7 +253,7 @@ function alItemHtml(i) {
       ${i.thesisHit ? `<p class="thit">⚑ Thesis: ${esc(i.thesisHit)}</p>` : ""}
       <div class="src">${esc(i.source || host || "")}${host && i.source && !i.source.includes(host) ? ` · ${esc(host)}` : ""}${(i.also || []).length ? ` · also ${i.also.slice(0, 3).map(a => a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.source || "source")}</a>` : esc(a.source || "")).join(", ")}` : ""}</div>
     </div>
-    <div class="acts">${i.status === "new" ? `<button class="btn small" type="button" data-alact="seen" title="Mark seen">✓</button>` : ""}<button class="btn small" type="button" data-alact="${i.status === "dismissed" ? "restore" : "dismiss"}">${i.status === "dismissed" ? "Restore" : "Dismiss"}</button><button class="btn small" type="button" data-alact="committee" title="Open the Investment Committee on this ticker">Committee →</button></div>
+    <div class="acts"><div class="fb" role="group" aria-label="Was this useful?"><button class="btn small ${i.feedback === "useful" ? "on" : ""}" type="button" data-alact="useful" title="Useful — show me more like this">▲ Useful</button><button class="btn small ${i.feedback === "noise" ? "on" : ""}" type="button" data-alact="noise" title="Noise — fewer like this">▼ Noise</button></div>${i.status === "dismissed" ? `<button class="btn small" type="button" data-alact="restore">Restore</button>` : ""}<button class="btn small" type="button" data-alact="committee" title="Open the Investment Committee on this ticker">Committee →</button></div>
   </article>`;
 }
 
@@ -256,6 +282,7 @@ function alExport() {
   const st = ALS.settings;
   saveFile("alerts.json", JSON.stringify({app: "ai-stock-alert-system", version: A.VERSION, generated: new Date().toISOString(),
     settings: {plan: st.plan, searchDepth: +st.searchDepth, reputableOnly: !!st.reputableOnly, urgentRule: st.urgentRule, blocked: st.blocked},
+    feedback: {feedback: ALS.feedback.slice(0, 60).map(({v, host, seat, kind, title}) => ({v, host, seat, kind, title})), muted: st.muted || [], unmuted: st.unmuted || []},
     tickers: ALS.list.map(w => ({ticker: U.normTicker(w.ticker), on: w.on !== false, terms: w.terms || "", below: w.below || "", above: w.above || ""}))}, null, 2), "application/json");
 }
 async function alSync() {
@@ -297,6 +324,11 @@ function alBind() {
     const t = e.target.closest("button, [data-alopen]"); if (!t) return; const d = t.dataset;
     if (d.app) { setApp(d.app); return; }
     if (d.viewGo) { go(d.viewGo); return; }
+    if (d.alunmute) { const st = ALS.settings; st.muted = (st.muted || []).filter(h => h !== d.alunmute); st.unmuted = [...new Set((st.unmuted || []).concat(d.alunmute))]; alPersist.settings(); renderSettings(); toast(`${d.alunmute} unmuted.`); return; }
+    if (d.almute) { const h = ($("#alMuteIn").value || "").trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, ""); if (!h) return; const st = ALS.settings; st.muted = [...new Set((st.muted || []).concat(h))]; st.unmuted = (st.unmuted || []).filter(x => x !== h); alPersist.settings(); renderSettings(); return; }
+    if (d.alfbclear) { ALS.feedback = []; alPersist.feedback(); renderSettings(); toast("Feedback cleared."); return; }
+    if (t.id === "alFeedCheck") { const out = $("#alFeedOut"); out.textContent = "Checking…"; const hz = await A.data.gatewayHealth();
+      out.innerHTML = !hz ? `<span style="color:var(--bad)">Couldn't reach your gateway — check Settings → Data.</span>` : `Gateway ✓ · Reddit ${hz.reddit ? "<b style='color:var(--good)'>✓ set up</b>" : "<b style='color:var(--warn)'>not set up</b>"} · YouTube ${hz.youtube ? "<b style='color:var(--good)'>✓ set up</b>" : "<b style='color:var(--warn)'>not set up</b>"}${hz.version >= 3 ? "" : " · <b style='color:var(--bad)'>old worker code — re-paste gateway.js</b>"}`; return; }
     if (d.alkwreset) { const c = ALS.ctx[d.alkwreset]; if (c) { delete c.keywordsAt; alPersist.ctx(); } t.replaceWith(Object.assign(document.createElement("span"), {textContent: "OK — the next sweep finds them again.", className: "small"})); return; }
     if (d.alseat) { ALS.seatOpen = ALS.seatOpen === d.alseat ? null : d.alseat; renderAlBoard(); renderAlSeatPanel(); if (ALS.seatOpen) $("#alSeatPanel").scrollIntoView({behavior: "smooth", block: "nearest"}); return; }
     if (d.alplan) { ALS.settings.plan = d.alplan; alPersist.settings(); renderAlTop(); renderEngine(); updateNav(); return; }
@@ -310,6 +342,15 @@ function alBind() {
     if (t.id === "alSync") { alSync(); return; }
     if (d.alact) { const card = t.closest("[data-alid]"); const it = ALS.feed.find(i => i.ticker + "|" + i.id === card.dataset.alid); if (!it) return;
       if (d.alact === "committee") { setApp("committee"); $("#ticker").value = it.ticker; renderConsole(); $("#ticker").focus(); return; }
+      if (d.alact === "useful" || d.alact === "noise") { const host = AL.hostOf(it.url);
+        ALS.feedback = ALS.feedback.filter(x => x.id !== it.ticker + "|" + it.id);
+        if (it.feedback === d.alact) { it.feedback = null; if (d.alact === "noise") it.status = "seen"; }
+        else { it.feedback = d.alact; it.status = d.alact === "noise" ? "dismissed" : "seen";
+          ALS.feedback.unshift({id: it.ticker + "|" + it.id, v: d.alact, host, seat: it.seat, kind: it.kind, title: `${it.ticker}: ${it.title}`, at: Date.now()});
+          if (d.alact === "noise" && host && !["sec", "tape", "feeds"].includes(it.seat)) { const n = ALS.feedback.filter(x => x.host === host && x.v === "noise").length, u = ALS.feedback.some(x => x.host === host && x.v === "useful");
+            toast(!u && n >= 3 ? `${host} is now muted (3 noise marks). Unmute in Settings → Alerts.` : `Marked as noise — the Alert Desk will rank things like this lower${!u ? ` (${3 - n} more from ${host} mutes it)` : ""}.`, 5000); }
+          else if (d.alact === "useful") toast("Noted — the Alert Desk will rank things like this higher."); }
+        alPersist.feedback(); alPersist.feed(); updateNav(); renderAlItems(); return; }
       it.status = d.alact === "dismiss" ? "dismissed" : "seen"; alPersist.feed(); updateNav(); renderAlItems(); return; }
     // alert list
     if (t.id === "alAdd") { alReadList(); const add = $("#alNew").value.split(/[\s,;]+/).map(U.normTicker).filter(U.validTicker);
@@ -326,6 +367,26 @@ function alBind() {
     if (d.alopen) { alShowSweep(d.alopen); return; }
   });
   document.addEventListener("change", e => { if (e.target.id === "alTick") { ALS.filter.ticker = e.target.value; renderAlItems(); } if (e.target.id === "alSel") { ALS.sel = e.target.value; renderAlTop(); } });
+}
+
+/* ---------- Settings → Alerts: learning and direct-feed setup ---------- */
+function alLearningHtml() {
+  const fb = ALS.feedback, u = fb.filter(x => x.v === "useful").length, n = fb.length - u, P = AL.prefsFrom(alPrefs());
+  const auto = new Set(P.muted.filter(h => !(ALS.settings.muted || []).includes(h)));
+  return `<div class="card"><h3 class="h3">Learning from your Useful / Noise marks</h3>
+    <p class="small">${fb.length ? `${u} marked useful, ${n} marked noise. The Alert Desk sees recent examples and ranks similar items up or down.` : "Use ▲ Useful and ▼ Noise on alerts in the Feed; the Alert Desk learns from them."} A source marked noise 3 times (and never useful) is muted automatically. Export alerts.json again so the morning digest learns too.</p>
+    <div class="jrow"><span class="lbl">Muted sources</span>${P.muted.length ? P.muted.map(h => `<span class="fchip">${esc(h)}${auto.has(h) ? " <small>auto</small>" : ""}<button type="button" data-alunmute="${esc(h)}" aria-label="Unmute ${esc(h)}">×</button></span>`).join("") : `<span class="muted small">none</span>`}</div>
+    <div class="jrow"><input class="field small" id="alMuteIn" placeholder="mute a site, e.g. example.com" aria-label="Site to mute"><button class="btn small" type="button" data-almute="1">Mute</button>${fb.length ? `<button class="btn small" type="button" data-alfbclear="1">Clear all feedback</button>` : ""}</div></div>`;
+}
+function alFeedSetupHtml() {
+  return `<div class="card"><h3 class="h3">Direct feeds</h3>
+    <p class="small">The <b>Direct Feeds</b> step reads StockTwits, Google News, Apple Podcasts, SEC full-text search and Wikipedia through your gateway for free — nothing to set up beyond re-pasting the 6.2 worker code. <b>Reddit</b> and <b>YouTube</b> need free keys, stored only in Cloudflare:</p>
+    <ol class="steps">
+      <li><b>Reddit:</b> sign in at reddit.com, open <code>reddit.com/prefs/apps</code>, click <b>create another app…</b>, choose <b>script</b>, name it <i>aic-gateway</i>, put <code>http://localhost</code> as the redirect URI, and create. The <b>client ID</b> is the short code under the app name; the <b>secret</b> is labelled "secret". In Cloudflare → your worker → Settings → Variables and Secrets add <code>REDDIT_CLIENT_ID</code> and <code>REDDIT_CLIENT_SECRET</code> (type Secret).</li>
+      <li><b>YouTube</b> (optional): at <code>console.cloud.google.com</code> create a project, enable <b>YouTube Data API v3</b>, then Credentials → Create credentials → API key. Add it in Cloudflare as <code>YOUTUBE_API_KEY</code> (Secret).</li>
+      <li><b>For the morning email</b> (optional): in GitHub → your repo → Settings → Secrets and variables → Actions, add <code>AIC_GATEWAY_URL</code> (your worker address) and <code>AIC_GATEWAY_TOKEN</code> (your access token) so the 6:30 digest can use Reddit and YouTube too.</li>
+    </ol>
+    <div class="formfoot"><button class="btn" type="button" id="alFeedCheck">Check my gateway</button><span class="small" id="alFeedOut"></span></div></div>`;
 }
 
 /* ---------- switching apps ---------- */

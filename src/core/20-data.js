@@ -15,7 +15,7 @@ D.available = () => !!(AIC.env.gateway || AIC.env.direct);
 /* GET a URL as json or text. opts: {type:'json'|'text', strip:bool, max:number, ttl} */
 D.get = async function (url, opts = {}) {
   const key = url + "|" + (opts.strip ? 1 : 0) + "|" + (opts.max || "");
-  if (memo.has(key)) return memo.get(key);
+  const hit = memo.get(key); if (hit && Date.now() - hit.at < 600000) return hit.p; // remembered for 10 minutes
   const p = (async () => {
     let res;
     if (AIC.env.gateway) {
@@ -32,11 +32,23 @@ D.get = async function (url, opts = {}) {
     if (opts.max && t.length > opts.max) t = t.slice(0, opts.max);
     return t;
   })();
-  memo.set(key, p);
+  memo.set(key, {p, at: Date.now()});
   p.catch(() => memo.delete(key));
   return p;
 };
 D.clearMemo = () => memo.clear();
+
+/* keyed social routes on the gateway (/reddit, /youtube). The GitHub runner reaches them through AIC.env.gwExtra. */
+const gwBase = () => AIC.env.gateway ? {url: AIC.env.gateway, token: AIC.env.token} : AIC.env.gwExtra && AIC.env.gwExtra.url ? AIC.env.gwExtra : null;
+D.gatewayRoute = async function (path, params, {signal} = {}) {
+  const g = gwBase(); if (!g) throw new DataError("No gateway for " + path, "no_gateway");
+  const qs = Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+  const res = await fetch(`${g.url.replace(/\/+$/, "")}${path}?${qs}`, {headers: g.token ? {"x-aic-token": g.token} : {}, signal});
+  if (res.status === 501) throw new DataError("not set up", "not_setup");
+  if (!res.ok) throw new DataError(`${path} ${res.status}`, "http_" + res.status);
+  return res.json();
+};
+D.gatewayHealth = async function () { const g = gwBase(); if (!g) return null; try { return await (await fetch(g.url.replace(/\/+$/, "") + "/")).json(); } catch { return null; } };
 
 /* ---------------- EDGAR ---------------- */
 const pad10 = cik => String(cik).replace(/\D/g, "").padStart(10, "0");

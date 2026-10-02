@@ -479,3 +479,16 @@ details.adv{margin-top:12px}details.adv summary{cursor:pointer;margin-bottom:8px
 .kw.avoid{border-color:var(--line-2);background:none;color:var(--muted);text-decoration:line-through}
 #ticker,.upper,#cmpTickers,#labTickers,#wNew{text-transform:uppercase}
 @media (max-width:640px){.kwg{grid-template-columns:1fr;gap:4px}}
+/* 6.2 direct feeds + feedback */
+.buzzbox{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin:6px 0 10px;background:var(--sunk)}
+.buzzhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.badge.buzz-spiking{color:#fff;background:var(--bad);border-color:var(--bad)}.badge.buzz-elevated{color:var(--warn);border-color:var(--warn)}.badge.buzz-quiet{color:var(--muted)}
+.dt.buzz td,.dt.buzz th{padding:5px 8px}
+.sparkrow{display:flex;align-items:center;gap:10px;margin-top:6px}.spark{width:180px;height:24px}.spark rect{fill:color-mix(in srgb,var(--c-sent) 70%,transparent)}
+.feedsrc{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.feedsrc .fs{font-size:11.5px;border:1px solid var(--line-2);border-radius:999px;padding:3px 9px;color:var(--fg-2)}
+.feedsrc .fs.off{border-style:dashed;color:var(--muted)}.feedsrc .fs.err{color:var(--warn)}
+.alitem .acts .fb{display:flex;gap:4px}
+.alitem .acts .fb .btn{flex:1;padding-inline:8px}
+.alitem .acts .fb .btn.on{color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.alitem .acts .fb .btn[data-alact="noise"].on{color:var(--bad);border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent)}

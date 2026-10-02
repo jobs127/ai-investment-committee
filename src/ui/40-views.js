@@ -284,7 +284,8 @@ function renderSettings() {
     ${f("alRule", "Send an urgent email for", sel("alRule", Object.entries(AL.URGENT_RULES), a.urgentRule), true)}
     ${f("alBlocked", "Sites left out when you choose “Reputable only”", `<textarea class="field" id="alBlocked" rows="3">${esc(a.blocked)}</textarea>`, true)}
     </div><p class="small muted">The morning digest arrives at 6:30 am Central on weekdays through the GitHub schedule (see Alert list). Weekly sentinels — podcasts, regulators, customers & rivals, shorts & ownership — run in Monday's digest; daily ones every weekday. A manual sweep always runs all of them.</p>
-    <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button><button class="btn" type="button" id="alBlockReset">Reset the list</button></div></form>`; }
+    <div class="formfoot"><button class="btn primary" type="submit">✓ Save</button><button class="btn" type="button" id="alBlockReset">Reset the list</button></div></form>
+    ${alLearningHtml()}${alFeedSetupHtml()}`; }
   if (S.setTab === "data") body = `<form class="card" id="dataForm"><p class="small">The <b>data gateway</b> is a tiny Cloudflare Worker (in the repo's <code>worker/</code> folder) that fetches SEC EDGAR and price data for the browser, which those sites block directly. It can also hold your Anthropic key so the key never sits in the browser.</p>
     ${S.inClaude ? `<p class="warnline">Inside claude.ai the page can't reach a gateway. These settings apply to the standalone version.</p>` : ""}
     <div class="pgrid">${f("gUrl", "Gateway URL", inp("gUrl", st.gateway, "https://aic-gateway.yourname.workers.dev"), true)}

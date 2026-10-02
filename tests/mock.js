@@ -94,6 +94,22 @@ function fixtureFor(url) {
   if (/getcurrent.*type=4&/.test(u)) return {text: atom("4", [{co: "Select Water Solutions, Inc.", cik: "0001693256", acc: "000169325626000050", role: "Issuer"}])};
   if (/000169325626000050\/index\.json/.test(u)) return {json: {directory: {item: [{name: "xslF345X05/x.xml"}, {name: "form4a.xml"}]}}};
   if (/000169325626000050\/form4a\.xml/.test(u)) return {text: form4("Jane Director", "<isDirector>1</isDirector>", "P", "2026-09-29", 40000, 9.5)};
+  // direct feeds (dates relative to now so the sweep window includes them)
+  const ago = h => new Date(Date.now() - h * 3600e3).toISOString();
+  if (/api\.stocktwits\.com\/api\/2\/streams\/symbol\//.test(u)) return {json: {symbol: {watchlist_count: 5120}, messages: Array.from({length: MOCK.stCount}, (_, i) => ({id: 900 + i, body: i % 3 ? `$WTTR recycling volumes look strong ${i}` : `$WTTR chart breaking out ${i}`, created_at: ago(i * (20 / MOCK.stCount)), user: {username: "trader" + i}, entities: {sentiment: i % 4 ? {basic: "Bullish"} : {basic: "Bearish"}}, likes: {total: i}}))}};
+  if (/news\.google\.com\/rss\/search/.test(u)) return {text: `<rss><channel>${Array.from({length: 6}, (_, i) => `<item><title>Select Water Solutions ${["signs Permian recycling contract", "upgraded at Citi to Buy", "CEO talks produced water on podcast", "Texas regulators cut disposal permits", "shares rise", "to present at conference"][i]}</title><link>https://news.google.com/rss/articles/a${i}</link><pubDate>${new Date(Date.now() - i * 7200e3).toUTCString()}</pubDate><source url="https://x.com">${["Reuters", "Barron's", "Hart Energy", "Midland Reporter-Telegram", "MarketWatch", "Business Wire"][i]}</source></item>`).join("")}</channel></rss>`};
+  if (/itunes\.apple\.com\/search/.test(u)) return {json: {results: [{trackId: 1, trackName: "Water is the new oil — with Select Water's CEO", collectionName: "Energy Podcast", releaseDate: ago(48), trackViewUrl: "https://podcasts.apple.com/ep1", shortDescription: "John Schmitz on recycling economics"}]}};
+  if (/efts\.sec\.gov\/LATEST\/search-index/.test(u)) return {json: {hits: {hits: [{_id: "0000950170-26-000111:dvn-10q.htm", _source: {display_names: ["Devon Energy Corp (DVN)"], file_date: new Date().toISOString().slice(0, 10), form: "10-Q", ciks: ["0001090012"]}}, {_id: "0001693256-26-000001:own.htm", _source: {display_names: ["Select Water Solutions"], file_date: "2026-09-30", form: "8-K", ciks: ["0001693256"]}}]}}};
+  if (/en\.wikipedia\.org\/w\/api\.php/.test(u)) return {json: {query: {search: [{title: "Select Water Solutions"}]}}};
+  if (/wikimedia\.org\/api\/rest_v1\/metrics\/pageviews/.test(u)) return {json: {items: Array.from({length: 60}, (_, i) => ({timestamp: "x", views: i === 59 ? MOCK.wikiLast : 80 + (i % 7)}))}};
+  return null;
+}
+const MOCK = {stCount: 30, wikiLast: 95};
+function socialRoute(url) { // the gateway's /reddit and /youtube
+  const u = new URL(url), now = Date.now() / 1000;
+  if (u.pathname === "/reddit") return MOCK.noReddit ? {status: 501, text: "not set up"} : {json: {posts: [{id: "r1", title: "WTTR is the cheapest water infrastructure play — DD", text: "Recycling contracts ramping", sub: "stocks", author: "a", score: 88, comments: 41, created: now - 7200, url: "https://www.reddit.com/r/stocks/comments/r1/"}, {id: "r2", title: "Anyone else holding $WTTR?", text: "", sub: "wallstreetbets", author: "b", score: 5, comments: 3, created: now - 30000, url: "https://www.reddit.com/r/wallstreetbets/comments/r2/"}]}};
+  if (u.pathname === "/youtube") return {json: {videos: [{id: "v1", title: "Select Water Solutions stock analysis", text: "Is WTTR undervalued?", channel: "Value Hunter", published: new Date(Date.now() - 86400e3).toISOString(), url: "https://www.youtube.com/watch?v=v1"}]}};
+  if (u.pathname === "/") return {json: {ok: true, version: 3, reddit: !MOCK.noReddit, youtube: true}};
   return null;
 }
 
@@ -202,4 +218,4 @@ SEAT_DATA["MARKET SCOUT"] = {summary: "Consensus Hold, PT 13; short interest 6%.
 SEAT_DATA["FIELD SCOUT"] = {summary: "Operators shifting to recycled water.", catalysts: [{event: "Q3 earnings", date: "2026-11-02", impact: "binary"}]};
 SEAT_DATA["SCREENER"] = {summary: "Worth a look.", score_screen: 7, call: "PROMISING", reasons: ["Capex cliff"], questions: ["Durability of recycling pricing?"]};
 
-module.exports = {fixtureFor, anthropicSSE, anthropicMessage, batchMock, SEAT_DATA};
+module.exports = {fixtureFor, anthropicSSE, anthropicMessage, batchMock, SEAT_DATA, socialRoute, MOCK};
