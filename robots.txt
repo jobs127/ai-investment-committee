@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# Perplexity's crawlers: not allowed on any page (Todd, October 22, 2026).
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+Disallow: /
